@@ -466,21 +466,21 @@ def train(net, optimizer, train_dataloaders, valid_dataloaders, lr_scheduler):
         if epoch % 1 == 0:
             model_name = "/epoch_"+str(epoch)+".pth"
             print('come here save at', "train" + model_name)
-            misc.save_on_master(net.module.state_dict(),"train" + model_name)
+            misc.save_on_master(net.state_dict(),"train" + model_name)
     
     # Finish training
     print("Training Reaches The Maximum Epoch Number")
     
     # merge sam and hq_decoder
-    if misc.is_main_process():
-        sam_ckpt = torch.load("train\pretrained_checkpoint\sam_vit_b_01ec64.pth")
-        hq_decoder = torch.load("train" + model_name)
-        for key in hq_decoder.keys():
-            sam_key = 'mask_decoder.'+key
-            if sam_key not in sam_ckpt.keys():
-                sam_ckpt[sam_key] = hq_decoder[key]
-        model_name = "/sam_hq_epoch_"+str(epoch)+".pth"
-        torch.save(sam_ckpt, "train" + model_name)
+    # if misc.is_main_process():
+    #     sam_ckpt = torch.load("train\pretrained_checkpoint\sam_vit_b_01ec64.pth")
+    #     hq_decoder = torch.load("train" + model_name)
+    #     for key in hq_decoder.keys():
+    #         sam_key = 'mask_decoder.'+key
+    #         if sam_key not in sam_ckpt.keys():
+    #             sam_ckpt[sam_key] = hq_decoder[key]
+    #     model_name = "/sam_hq_epoch_"+str(epoch)+".pth"
+    #     torch.save(sam_ckpt, "train" + model_name)
 
 
 
