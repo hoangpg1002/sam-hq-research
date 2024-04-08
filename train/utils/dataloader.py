@@ -62,9 +62,9 @@ def create_dataloaders(name_im_gt_list, my_transforms=[], batch_size=1, training
             gos_datasets.append(gos_dataset)
 
         gos_dataset = ConcatDataset(gos_datasets)
-        batch_sampler_train = torch.utils.data.BatchSampler(
-            torch.utils.data.RandomSampler(gos_dataset), batch_size, drop_last=True)
-        dataloader = DataLoader(gos_dataset, batch_sampler=batch_sampler_train, num_workers=num_workers_)
+        # batch_sampler_train = torch.utils.data.BatchSampler(
+        #     torch.utils.data.RandomSampler(gos_dataset), batch_size, drop_last=True)
+        dataloader = DataLoader(gos_dataset, num_workers=num_workers_)
 
         gos_dataloaders = dataloader
         gos_datasets = gos_dataset
