@@ -1,3 +1,10 @@
+My project involves researching and fine-tuning a model, organizing it, adjusting its architecture, and training it on my Kaggle.
+https://www.kaggle.com/code/nguyenhuyhoang1/hq-sam-research
+
+
+
+
+
 # Segment Anything in High Quality
 
 [![PWC](https://img.shields.io/endpoint.svg?url=https://paperswithcode.com/badge/segment-anything-in-high-quality/zero-shot-segmentation-on-segmentation-in-the)](https://paperswithcode.com/sota/zero-shot-segmentation-on-segmentation-in-the?p=segment-anything-in-high-quality)
