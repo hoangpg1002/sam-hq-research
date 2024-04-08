@@ -597,8 +597,8 @@ if __name__ == "__main__":
                  "gt_ext": ".png"}
 
     dataset_thin = {"name": "ThinObject5k-TR",
-                 "im_dir": "/kaggle/input/thinobject5k/data/thin_object_detection/ThinObject5K/images_train",
-                 "gt_dir": "/kaggle/input/thinobject5k/data/thin_object_detection/ThinObject5K/masks_train",
+                 "im_dir": "/kaggle/input/thinobject5k/thin_object_detection/ThinObject5K/images_train",
+                 "gt_dir": "/kaggle/input/thinobject5k/thin_object_detection/ThinObject5K/masks_train",
                  "im_ext": ".jpg",
                  "gt_ext": ".png"}
 
@@ -634,20 +634,20 @@ if __name__ == "__main__":
 
     # valid set
     dataset_coift_val = {"name": "COIFT",
-                 "im_dir": "/kaggle/input/thinobject5k/data/thin_object_detection/COIFT/images",
-                 "gt_dir": "/kaggle/input/thinobject5k/data/thin_object_detection/COIFT/masks",
+                 "im_dir": "/kaggle/input/thinobject5k/thin_object_detection/COIFT/images",
+                 "gt_dir": "/kaggle/input/thinobject5k/thin_object_detection/COIFT/masks",
                  "im_ext": ".jpg",
                  "gt_ext": ".png"}
 
     dataset_hrsod_val = {"name": "HRSOD",
-                 "im_dir": "/kaggle/input/thinobject5k/data/thin_object_detection/HRSOD/images",
-                 "gt_dir": "/kaggle/input/thinobject5k/data/thin_object_detection/HRSOD/masks_max255",
+                 "im_dir": "/kaggle/input/thinobject5k/thin_object_detection/HRSOD/images",
+                 "gt_dir": "/kaggle/input/thinobject5k/thin_object_detection/HRSOD/masks_max255",
                  "im_ext": ".jpg",
                  "gt_ext": ".png"}
 
     dataset_thin_val = {"name": "ThinObject5k-TE",
-                 "im_dir": "/kaggle/input/thinobject5k/data/thin_object_detection/ThinObject5K/images_test",
-                 "gt_dir": "/kaggle/input/thinobject5k/data/thin_object_detection/ThinObject5K/masks_test",
+                 "im_dir": "/kaggle/input/thinobject5k/thin_object_detection/ThinObject5K/images_test",
+                 "gt_dir": "/kaggle/input/thinobject5k/thin_object_detection/ThinObject5K/masks_test",
                  "im_ext": ".jpg",
                  "gt_ext": ".png"}
 
