@@ -145,6 +145,7 @@ class MaskDecoderHQ(nn.Module):
         # print(self.embedding_imageglobal(global_feature).shape)
         #hq_features = self.embedding_encoder(image_embeddings) + self.compress_vit_feat(vit_features)#([1, 32, 256, 256])
         cavang_features=self.embedding_encoder(image_embeddings)+self.embedding_imagelocal(local_feature)+self.embedding_imageglobal(global_feature)
+        print(net)
         masks, iou_pred = self.predict_masks(
             image_embeddings=image_embeddings,
             image_pe=image_pe,
