@@ -4,7 +4,8 @@
 
 # This source code is licensed under the license found in the
 # LICENSE file in the root directory of this source tree.
-
+from torchvision.models import ResNet50_Weights
+from torchvision.models.detection.backbone_utils import resnet_fpn_backbone
 import torch
 from torch import nn
 from torch.nn import functional as F
@@ -14,7 +15,8 @@ from typing import List, Tuple, Type
 from .common import LayerNorm2d
 import sys
 sys.path.append("D:\StableDiffusion\sam-hq")
-from mobilenetv3.extractor import extract_feature
+from fpn.retina_fpn import RetinaFPN101
+
 class MaskDecoderHQ(nn.Module):
     def __init__(
         self,
@@ -94,15 +96,20 @@ class MaskDecoderHQ(nn.Module):
                                         LayerNorm2d(transformer_dim // 4),
                                         nn.GELU(),
                                         nn.Conv2d(transformer_dim // 4, transformer_dim // 8, 3, 1, 1))
-        self.fecture_mobilenetv3=extract_feature
-        self.embedding_mobilenetv3feature=nn.Sequential(
-            nn.Conv2d(160,transformer_dim,kernel_size=1),
-            LayerNorm2d(transformer_dim),
+        self.embedding_imagelocal =nn.Sequential(
+                                        nn.Conv2d(transformer_dim,transformer_dim//4,kernel_size=1,stride=1),
+                                        LayerNorm2d(transformer_dim//4),
+                                        nn.GELU(),     
+                                        nn.Conv2d(transformer_dim//4,transformer_dim//8,kernel_size=3,padding=1,stride=1)                              
+                                    )
+        self.embedding_imageglobal=nn.Sequential(
+            nn.ConvTranspose2d(transformer_dim,transformer_dim,kernel_size=2,stride=2),
+            nn.ConvTranspose2d(transformer_dim,transformer_dim,kernel_size=2,stride=2),
+            nn.ConvTranspose2d(transformer_dim,transformer_dim,kernel_size=2,stride=2),
+            nn.Conv2d(transformer_dim,transformer_dim//4,kernel_size=1,stride=1),
             nn.GELU(),
-            nn.ConvTranspose2d(transformer_dim , transformer_dim , kernel_size=2, stride=2),
+            nn.Conv2d(transformer_dim//4,transformer_dim//8,kernel_size=3,padding=1,stride=1)
         )
-
-
     def forward(
         self,
         image_embeddings: torch.Tensor,
@@ -129,17 +136,21 @@ class MaskDecoderHQ(nn.Module):
           torch.Tensor: batched predictions of mask quality
         """
         vit_features = interm_embeddings[0].permute(0, 3, 1, 2) # early-layer ViT feature, after 1st global attention block in ViT #([1, 768, 64, 64])
-        image=interm_embeddings.pop()
-        image_feature=self.fecture_mobilenetv3(image)
-        image_feature=self.embedding_mobilenetv3feature(image_feature)
-        hq_features = self.embedding_encoder(image_embeddings) + self.compress_vit_feat(vit_features) + self.embedding_encoder(image_feature)
 
+        image=interm_embeddings.pop()
+        net = resnet_fpn_backbone(backbone_name='resnet50', weights=ResNet50_Weights.DEFAULT, trainable_layers=3).to(device="cuda")
+        fms = net(image)
+        local_feature,global_feature=fms['0'],fms['3']
+        # print(self.embedding_imagelocal(local_feature).shape)
+        # print(self.embedding_imageglobal(global_feature).shape)
+        #hq_features = self.embedding_encoder(image_embeddings) + self.compress_vit_feat(vit_features)#([1, 32, 256, 256])
+        cavang_features=self.embedding_encoder(image_embeddings)+self.embedding_imagelocal(local_feature)+self.embedding_imageglobal(global_feature)
         masks, iou_pred = self.predict_masks(
             image_embeddings=image_embeddings,
             image_pe=image_pe,
             sparse_prompt_embeddings=sparse_prompt_embeddings,
             dense_prompt_embeddings=dense_prompt_embeddings,
-            hq_features=hq_features,
+            hq_features=cavang_features,
         )
 
         # Select the correct mask or masks for output
@@ -184,9 +195,8 @@ class MaskDecoderHQ(nn.Module):
         src = src + dense_prompt_embeddings
         pos_src = torch.repeat_interleave(image_pe, tokens.shape[0], dim=0)
         b, c, h, w = src.shape
-
         # Run the transformer
-        hs, src = self.transformer(src, pos_src, tokens)
+        hs, src = self.transformer(src, pos_src, tokens) #src=(1,256,64,64)
         iou_token_out = hs[:, 0, :]
         mask_tokens_out = hs[:, 1 : (1 + self.num_mask_tokens), :]
 
@@ -208,10 +218,7 @@ class MaskDecoderHQ(nn.Module):
 
         masks_sam = (hyper_in[:,:self.num_mask_tokens-1] @ upscaled_embedding_sam.view(b, c, h * w)).view(b, -1, h, w)
         masks_sam_hq = (hyper_in[:,self.num_mask_tokens-1:] @ upscaled_embedding_hq.view(b, c, h * w)).view(b, -1, h, w)
-        print(masks_sam)
-        print(masks_sam_hq)
         masks = torch.cat([masks_sam,masks_sam_hq],dim=1)
-        print(masks.shape)
         # Generate mask quality predictions
         iou_pred = self.iou_prediction_head(iou_token_out)
 
