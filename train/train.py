@@ -157,7 +157,8 @@ class MaskDecoderHQ(MaskDecoder):
         vit_features = interm_embeddings[0].permute(0, 3, 1, 2) # early-layer ViT feature, after 1st global attention block in ViT
         image=interm_embeddings.pop()
         net = resnet_fpn_backbone(backbone_name='resnet50', weights=ResNet50_Weights.DEFAULT, trainable_layers=3).to(device="cuda")
-        fms = net(image)
+        with torch.no_grad():
+            fms = net(image)
         local_feature,global_feature=fms['0'],fms['3']
         #hq_features = self.embedding_encoder(image_embeddings) + self.compress_vit_feat(vit_features)
         cavang_features=self.embedding_encoder(image_embeddings)+self.embedding_imagelocal(local_feature)+self.embedding_imageglobal(global_feature)+ self.compress_vit_feat(vit_features)
@@ -346,7 +347,7 @@ def main(net, train_datasets, valid_datasets):
                                                                 RandomHFlip(),
                                                                 LargeScaleJitter()
                                                                 ],
-                                                    batch_size = 4,
+                                                    batch_size = 2,
                                                     training = True)
     print(len(train_dataloaders), " train dataloaders created")
 
