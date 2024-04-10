@@ -18,8 +18,8 @@ import random
 from typing import Dict, List, Tuple
 from segment_anything_training import sam_model_registry
 from segment_anything_training.modeling import TwoWayTransformer, MaskDecoder
-from torchvision.models import ResNet50_Weights
-from torchvision.models.detection.backbone_utils import resnet_fpn_backbone
+from torchvision.models import MobileNet_V3_Large_Weights
+from torchvision.models.detection.backbone_utils import mobilenet_backbone
 from utils.dataloader import get_im_gt_name_dict, create_dataloaders, RandomHFlip, Resize, LargeScaleJitter
 from utils.loss_mask import loss_masks
 import utils.misc as misc
@@ -114,20 +114,29 @@ class MaskDecoderHQ(MaskDecoder):
                                         LayerNorm2d(transformer_dim // 4),
                                         nn.GELU(),
                                         nn.Conv2d(transformer_dim // 4, transformer_dim // 8, 3, 1, 1))
-        self.embedding_imagelocal =nn.Sequential(
-                                        nn.Conv2d(transformer_dim,transformer_dim//4,kernel_size=1,stride=1),
-                                        LayerNorm2d(transformer_dim//4),
-                                        nn.GELU(),     
-                                        nn.Conv2d(transformer_dim//4,transformer_dim//8,kernel_size=3,padding=1,stride=1)                              
-                                    )
-        self.embedding_imageglobal=nn.Sequential(
-                                        nn.ConvTranspose2d(transformer_dim,transformer_dim,kernel_size=2,stride=2),
-                                        nn.ConvTranspose2d(transformer_dim,transformer_dim,kernel_size=2,stride=2),
-                                        nn.ConvTranspose2d(transformer_dim,transformer_dim,kernel_size=2,stride=2),
-                                        nn.Conv2d(transformer_dim,transformer_dim//4,kernel_size=1,stride=1),
-                                        nn.GELU(),
-                                        nn.Conv2d(transformer_dim//4,transformer_dim//8,kernel_size=3,padding=1,stride=1)
-                                    )
+        self.embedding_imagelocal = nn.Sequential(
+                                            nn.ConvTranspose2d(transformer_dim, transformer_dim // 4, kernel_size=2, stride=2),
+                                            LayerNorm2d(transformer_dim // 4),
+                                            nn.GELU(),
+                                            nn.ConvTranspose2d(transformer_dim // 4, transformer_dim // 8, kernel_size=2, stride=2),
+                                            LayerNorm2d(transformer_dim // 8),
+                                            nn.GELU(),
+                                            nn.ConvTranspose2d(transformer_dim // 8, transformer_dim // 8, kernel_size=2, stride=2),
+                                        )
+
+        self.embedding_imageglobal = nn.Sequential(
+                                            nn.ConvTranspose2d(transformer_dim, transformer_dim // 4, kernel_size=2, stride=2),
+                                            LayerNorm2d(transformer_dim // 4),
+                                            nn.GELU(),
+                                            nn.ConvTranspose2d(transformer_dim // 4, transformer_dim // 8, kernel_size=2, stride=2),
+                                            LayerNorm2d(transformer_dim // 8),
+                                            nn.GELU(),
+                                            nn.ConvTranspose2d(transformer_dim // 8, transformer_dim // 16, kernel_size=2, stride=2),
+                                            LayerNorm2d(transformer_dim // 16),
+                                            nn.GELU(),
+                                            nn.ConvTranspose2d(transformer_dim // 16, transformer_dim // 16, kernel_size=2, stride=2),
+                                            nn.Conv2d(transformer_dim//16,32,1,1,0),
+                                        )
 
     def forward(
         self,
@@ -156,10 +165,10 @@ class MaskDecoderHQ(MaskDecoder):
         
         vit_features = interm_embeddings[0].permute(0, 3, 1, 2) # early-layer ViT feature, after 1st global attention block in ViT
         image=interm_embeddings.pop()
-        net = resnet_fpn_backbone(backbone_name='resnet50', weights=ResNet50_Weights.DEFAULT, trainable_layers=3).to(device="cuda")
+        net = mobilenet_backbone(backbone_name='mobilenet_v3_large',fpn=True,weights=MobileNet_V3_Large_Weights.DEFAULT, trainable_layers=2).to(device="cuda")
         with torch.no_grad():
             fms = net(image)
-        local_feature,global_feature=fms['0'],fms['3']
+        local_feature,global_feature=fms['0'],fms['pool']
         #hq_features = self.embedding_encoder(image_embeddings) + self.compress_vit_feat(vit_features)
         cavang_features=self.embedding_encoder(image_embeddings)+self.embedding_imagelocal(local_feature)+self.embedding_imageglobal(global_feature)+ self.compress_vit_feat(vit_features)
         batch_len = len(image_embeddings)
