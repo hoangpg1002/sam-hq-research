@@ -686,8 +686,8 @@ if __name__ == "__main__":
                  "im_ext": ".jpg",
                  "gt_ext": ".png"}
 
-    train_datasets = [dataset_thin]
-    valid_datasets = [dataset_thin_val] 
+    train_datasets = [dataset_thin_val]
+    valid_datasets = [dataset_coift_val] 
 
     # args = get_args_parser()
     net = MaskDecoderHQ("vit_b") 
