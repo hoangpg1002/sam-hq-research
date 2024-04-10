@@ -106,6 +106,7 @@ class ImageEncoderViT(nn.Module):
         
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
+        image=x
         x = self.patch_embed(x)
         if self.pos_embed is not None:
             x = x + self.pos_embed
@@ -116,7 +117,7 @@ class ImageEncoderViT(nn.Module):
                 interm_embeddings.append(x)
 
         x = self.neck(x.permute(0, 3, 1, 2))
-        
+        interm_embeddings.append(image)
         return x, interm_embeddings
 
 
