@@ -170,7 +170,7 @@ class MaskDecoderHQ(MaskDecoder):
             fms = net(image)
         local_feature,global_feature=fms['0'],fms['pool']
         #hq_features = self.embedding_encoder(image_embeddings) + self.compress_vit_feat(vit_features)
-        cavang_features=self.embedding_encoder(image_embeddings)+self.embedding_imagelocal(local_feature)+self.embedding_imageglobal(global_feature)+ self.compress_vit_feat(vit_features)
+        cavang_features=self.embedding_encoder(image_embeddings)+self.embedding_imagelocal(local_feature)+self.embedding_imageglobal(global_feature)
         batch_len = len(image_embeddings)
         masks = []
         iou_preds = []
