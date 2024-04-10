@@ -123,7 +123,15 @@ class MaskDecoderHQ(MaskDecoder):
                                             nn.GELU(),
                                             nn.ConvTranspose2d(transformer_dim // 8, transformer_dim // 8, kernel_size=2, stride=2),
                                         )
-
+        self.embedding_imagemid = nn.Sequential(
+                                    nn.ConvTranspose2d(transformer_dim, transformer_dim // 4, kernel_size=2, stride=2),
+                                    LayerNorm2d(transformer_dim // 4),
+                                    nn.GELU(),
+                                    nn.ConvTranspose2d(transformer_dim // 4, transformer_dim // 8, kernel_size=2, stride=2),
+                                    LayerNorm2d(transformer_dim // 8),
+                                    nn.GELU(),
+                                    nn.ConvTranspose2d(transformer_dim // 8, transformer_dim // 8, kernel_size=2, stride=2),
+                                     )
         self.embedding_imageglobal = nn.Sequential(
                                             nn.ConvTranspose2d(transformer_dim, transformer_dim // 4, kernel_size=2, stride=2),
                                             LayerNorm2d(transformer_dim // 4),
@@ -168,9 +176,9 @@ class MaskDecoderHQ(MaskDecoder):
         net = mobilenet_backbone(backbone_name='mobilenet_v3_large',fpn=True,weights=MobileNet_V3_Large_Weights.DEFAULT, trainable_layers=2).to(device="cuda")
         with torch.no_grad():
             fms = net(image)
-        local_feature,global_feature=fms['0'],fms['pool']
+        local_feature,mid_feature,global_feature=fms['0'],fms['1'],fms['pool']
         #hq_features = self.embedding_encoder(image_embeddings) + self.compress_vit_feat(vit_features)
-        cavang_features=self.embedding_encoder(image_embeddings)+self.embedding_imagelocal(local_feature)+self.embedding_imageglobal(global_feature)
+        cavang_features=self.embedding_encoder(image_embeddings)+self.embedding_imagelocal(local_feature)+self.embedding_imageglobal(global_feature)+self.embedding_imagemid(mid_feature)
         batch_len = len(image_embeddings)
         masks = []
         iou_preds = []
@@ -356,7 +364,7 @@ def main(net, train_datasets, valid_datasets):
                                                                 RandomHFlip(),
                                                                 LargeScaleJitter()
                                                                 ],
-                                                    batch_size = 2,
+                                                    batch_size = 4,
                                                     training = True)
     print(len(train_dataloaders), " train dataloaders created")
 
@@ -407,7 +415,7 @@ def train(net, optimizer, train_dataloaders, valid_dataloaders, lr_scheduler):
         metric_logger = misc.MetricLogger(delimiter="  ")
         # train_dataloaders.batch_sampler.sampler.set_epoch(epoch)
 
-        for data in metric_logger.log_every(train_dataloaders,200):
+        for data in metric_logger.log_every(train_dataloaders,100):
             inputs, labels = data['image'], data['label']
             if torch.cuda.is_available():
                 inputs = inputs.to(device="cuda")
