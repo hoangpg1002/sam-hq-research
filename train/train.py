@@ -23,7 +23,7 @@ from torchvision.models.detection.backbone_utils import mobilenet_backbone
 from utils.dataloader import get_im_gt_name_dict, create_dataloaders, RandomHFlip, Resize, LargeScaleJitter
 from utils.loss_mask import loss_masks
 import utils.misc as misc
-
+from FPN import MobileNetV2_dynamicFPN
 
 
 class LayerNorm2d(nn.Module):
@@ -87,7 +87,9 @@ class MaskDecoderHQ(MaskDecoder):
         print("HQ Decoder init from SAM MaskDecoder")
         for n,p in self.named_parameters():
             p.requires_grad = False
-
+        self.fpn=MobileNetV2_dynamicFPN().to(device="cuda")
+        for p in self.fpn.parameters():
+            p.requires_grad=True
         transformer_dim=256
         vit_dim_dict = {"vit_b":768,"vit_l":1024,"vit_h":1280}
         vit_dim = vit_dim_dict[model_type]
@@ -115,15 +117,15 @@ class MaskDecoderHQ(MaskDecoder):
                                         nn.GELU(),
                                         nn.Conv2d(transformer_dim // 4, transformer_dim // 8, 3, 1, 1))
         self.embedding_imagelocal = nn.Sequential(
-                                            nn.ConvTranspose2d(transformer_dim, transformer_dim // 4, kernel_size=2, stride=2),
-                                            LayerNorm2d(transformer_dim // 4),
-                                            nn.GELU(),
-                                            nn.ConvTranspose2d(transformer_dim // 4, transformer_dim // 8, kernel_size=2, stride=2),
+                                            nn.Conv2d(transformer_dim,transformer_dim//8, kernel_size=1, stride=1),
                                             LayerNorm2d(transformer_dim // 8),
                                             nn.GELU(),
-                                            nn.ConvTranspose2d(transformer_dim // 8, transformer_dim // 8, kernel_size=2, stride=2),
+                                            # nn.ConvTranspose2d(transformer_dim // 4, transformer_dim // 8, kernel_size=2, stride=2),
+                                            # LayerNorm2d(transformer_dim // 8),
+                                            # nn.GELU(),
+                                            # nn.ConvTranspose2d(transformer_dim // 8, transformer_dim // 8, kernel_size=2, stride=2),
                                         )
-        self.embedding_imagemid = nn.Sequential(
+        self.embedding_imageglobal = nn.Sequential(
                                     nn.ConvTranspose2d(transformer_dim, transformer_dim // 4, kernel_size=2, stride=2),
                                     LayerNorm2d(transformer_dim // 4),
                                     nn.GELU(),
@@ -132,19 +134,6 @@ class MaskDecoderHQ(MaskDecoder):
                                     nn.GELU(),
                                     nn.ConvTranspose2d(transformer_dim // 8, transformer_dim // 8, kernel_size=2, stride=2),
                                      )
-        self.embedding_imageglobal = nn.Sequential(
-                                            nn.ConvTranspose2d(transformer_dim, transformer_dim // 4, kernel_size=2, stride=2),
-                                            LayerNorm2d(transformer_dim // 4),
-                                            nn.GELU(),
-                                            nn.ConvTranspose2d(transformer_dim // 4, transformer_dim // 8, kernel_size=2, stride=2),
-                                            LayerNorm2d(transformer_dim // 8),
-                                            nn.GELU(),
-                                            nn.ConvTranspose2d(transformer_dim // 8, transformer_dim // 16, kernel_size=2, stride=2),
-                                            LayerNorm2d(transformer_dim // 16),
-                                            nn.GELU(),
-                                            nn.ConvTranspose2d(transformer_dim // 16, transformer_dim // 16, kernel_size=2, stride=2),
-                                            nn.Conv2d(transformer_dim//16,32,1,1,0),
-                                        )
 
     def forward(
         self,
@@ -170,15 +159,10 @@ class MaskDecoderHQ(MaskDecoder):
         Returns:
           torch.Tensor: batched predicted hq masks
         """
-        
-        vit_features = interm_embeddings[0].permute(0, 3, 1, 2) # early-layer ViT feature, after 1st global attention block in ViT
         image=interm_embeddings.pop()
-        net = mobilenet_backbone(backbone_name='mobilenet_v3_large',fpn=True,weights=MobileNet_V3_Large_Weights.DEFAULT, trainable_layers=2).to(device="cuda")
-        with torch.no_grad():
-            fms = net(image)
-        local_feature,mid_feature,global_feature=fms['0'],fms['1'],fms['pool']
-        #hq_features = self.embedding_encoder(image_embeddings) + self.compress_vit_feat(vit_features)
-        cavang_features=self.embedding_encoder(image_embeddings)+self.embedding_imagelocal(local_feature)+self.embedding_imageglobal(global_feature)+self.embedding_imagemid(mid_feature)
+        fms = self.fpn(image)
+        local_feature,global_feature=fms[4],fms[1]
+        cavang_features=self.embedding_encoder(image_embeddings)+self.embedding_imagelocal(local_feature)+self.embedding_imageglobal(global_feature)
         batch_len = len(image_embeddings)
         masks = []
         iou_preds = []
@@ -208,7 +192,7 @@ class MaskDecoderHQ(MaskDecoder):
             # singale mask output, default
             mask_slice = slice(0, 1)
             masks_sam = masks[:,mask_slice]
-
+        interm_embeddings.append(image)
         masks_hq = masks[:,slice(self.num_mask_tokens-1, self.num_mask_tokens), :, :]
         
         if hq_token_only:
@@ -694,8 +678,8 @@ if __name__ == "__main__":
                  "im_ext": ".jpg",
                  "gt_ext": ".png"}
 
-    train_datasets = [dataset_thin_val]
-    valid_datasets = [dataset_coift_val] 
+    train_datasets = [dataset_dis,dataset_thin,dataset_fss,dataset_duts,dataset_duts_te,dataset_ecssd,dataset_msra]
+    valid_datasets = [dataset_coift_val,dataset_hrsod_val,dataset_thin_val,dataset_dis_val] 
 
     # args = get_args_parser()
     net = MaskDecoderHQ("vit_b") 

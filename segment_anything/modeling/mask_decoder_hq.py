@@ -11,7 +11,7 @@ from torch import nn
 from torch.nn import functional as F
 
 from typing import List, Tuple, Type
-
+from .FPN import MobileNetV2_dynamicFPN
 from .common import LayerNorm2d
 import sys
 sys.path.append("D:\StableDiffusion\sam-hq")
@@ -49,7 +49,9 @@ class MaskDecoderHQ(nn.Module):
         self.transformer = transformer
 
         self.num_multimask_outputs = num_multimask_outputs
-
+        self.fpn=MobileNetV2_dynamicFPN().to(device="cuda")
+        for p in self.fpn.parameters():
+            p.requires_grad=True
         self.iou_token = nn.Embedding(1, transformer_dim)
         self.num_mask_tokens = num_multimask_outputs + 1
         print(self.num_mask_tokens)
@@ -96,28 +98,23 @@ class MaskDecoderHQ(nn.Module):
                                         nn.GELU(),
                                         nn.Conv2d(transformer_dim // 4, transformer_dim // 8, 3, 1, 1))
         self.embedding_imagelocal = nn.Sequential(
-                                            nn.ConvTranspose2d(transformer_dim, transformer_dim // 4, kernel_size=2, stride=2),
-                                            LayerNorm2d(transformer_dim // 4),
-                                            nn.GELU(),
-                                            nn.ConvTranspose2d(transformer_dim // 4, transformer_dim // 8, kernel_size=2, stride=2),
+                                            nn.Conv2d(transformer_dim,transformer_dim//8, kernel_size=1, stride=1),
                                             LayerNorm2d(transformer_dim // 8),
                                             nn.GELU(),
-                                            nn.ConvTranspose2d(transformer_dim // 8, transformer_dim // 8, kernel_size=2, stride=2),
+                                            # nn.ConvTranspose2d(transformer_dim // 4, transformer_dim // 8, kernel_size=2, stride=2),
+                                            # LayerNorm2d(transformer_dim // 8),
+                                            # nn.GELU(),
+                                            # nn.ConvTranspose2d(transformer_dim // 8, transformer_dim // 8, kernel_size=2, stride=2),
                                         )
-
         self.embedding_imageglobal = nn.Sequential(
-                                            nn.ConvTranspose2d(transformer_dim, transformer_dim // 4, kernel_size=2, stride=2),
-                                            LayerNorm2d(transformer_dim // 4),
-                                            nn.GELU(),
-                                            nn.ConvTranspose2d(transformer_dim // 4, transformer_dim // 8, kernel_size=2, stride=2),
-                                            LayerNorm2d(transformer_dim // 8),
-                                            nn.GELU(),
-                                            nn.ConvTranspose2d(transformer_dim // 8, transformer_dim // 16, kernel_size=2, stride=2),
-                                            LayerNorm2d(transformer_dim // 16),
-                                            nn.GELU(),
-                                            nn.ConvTranspose2d(transformer_dim // 16, transformer_dim // 16, kernel_size=2, stride=2),
-                                            nn.Conv2d(transformer_dim//16,32,1,1,0),
-                                        )
+                                    nn.ConvTranspose2d(transformer_dim, transformer_dim // 4, kernel_size=2, stride=2),
+                                    LayerNorm2d(transformer_dim // 4),
+                                    nn.GELU(),
+                                    nn.ConvTranspose2d(transformer_dim // 4, transformer_dim // 8, kernel_size=2, stride=2),
+                                    LayerNorm2d(transformer_dim // 8),
+                                    nn.GELU(),
+                                    nn.ConvTranspose2d(transformer_dim // 8, transformer_dim // 8, kernel_size=2, stride=2),
+                                     )
     def forward(
         self,
         image_embeddings: torch.Tensor,
@@ -143,18 +140,10 @@ class MaskDecoderHQ(nn.Module):
           torch.Tensor: batched predicted masks
           torch.Tensor: batched predictions of mask quality
         """
-        vit_features = interm_embeddings[0].permute(0, 3, 1, 2) # early-layer ViT feature, after 1st global attention block in ViT #([1, 768, 64, 64])
-
         image=interm_embeddings.pop()
-        net = mobilenet_backbone(backbone_name='mobilenet_v3_large',fpn=True,weights=MobileNet_V3_Large_Weights.DEFAULT, trainable_layers=2).to(device="cuda")
-        with torch.no_grad():
-            fms = net(image)
-        local_feature,global_feature=fms['0'],fms['pool']
-        # print(self.embedding_imagelocal(local_feature).shape)
-        # print(self.embedding_imageglobal(global_feature).shape)
-        #hq_features = self.embedding_encoder(image_embeddings) + self.compress_vit_feat(vit_features)#([1, 32, 256, 256])
+        fms = self.fpn(image)
+        local_feature,global_feature=fms[4],fms[1]
         cavang_features=self.embedding_encoder(image_embeddings)+self.embedding_imagelocal(local_feature)+self.embedding_imageglobal(global_feature)
-        print(net)
         masks, iou_pred = self.predict_masks(
             image_embeddings=image_embeddings,
             image_pe=image_pe,
@@ -177,7 +166,7 @@ class MaskDecoderHQ(nn.Module):
             mask_slice = slice(0, 1)
             iou_pred = iou_pred[:,mask_slice]
             masks_sam = masks[:,mask_slice]
-
+        interm_embeddings.append(image)
         masks_hq = masks[:,slice(self.num_mask_tokens-1, self.num_mask_tokens)]
         if hq_token_only:
             masks = masks_hq
