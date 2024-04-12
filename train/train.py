@@ -348,7 +348,7 @@ def main(net, train_datasets, valid_datasets):
                                                                 RandomHFlip(),
                                                                 LargeScaleJitter()
                                                                 ],
-                                                    batch_size = 4,
+                                                    batch_size = 2,
                                                     training = True)
     print(len(train_dataloaders), " train dataloaders created")
 
