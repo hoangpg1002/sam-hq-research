@@ -19,7 +19,7 @@ from typing import Dict, List, Tuple
 from segment_anything_training import sam_model_registry
 from segment_anything_training.modeling import TwoWayTransformer, MaskDecoder
 from torchvision.models import MobileNet_V3_Large_Weights
-from torchvision.models.detection.backbone_utils import mobilenet_backbone
+from mobilenetv3fpn import mobilenetV3_fpn_backbone
 from utils.dataloader import get_im_gt_name_dict, create_dataloaders, RandomHFlip, Resize, LargeScaleJitter
 from utils.loss_mask import loss_masks
 import utils.misc as misc
@@ -87,7 +87,7 @@ class MaskDecoderHQ(MaskDecoder):
         print("HQ Decoder init from SAM MaskDecoder")
         for n,p in self.named_parameters():
             p.requires_grad = False
-        self.fpn=mobilenet_backbone().to(device="cuda")
+        self.fpn=mobilenetV3_fpn_backbone().to(device="cuda")
         for p in self.fpn.parameters():
             p.requires_grad=True
         transformer_dim=256
