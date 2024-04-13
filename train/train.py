@@ -639,51 +639,51 @@ if __name__ == "__main__":
     ### --------------- Configuring the Train and Valid datasets ---------------
 
     dataset_dis = {"name": "DIS5K-TR",
-                 "im_dir": "./data/DIS5K/DIS-TR/im",
-                 "gt_dir": "./data/DIS5K/DIS-TR/gt",
+                 "im_dir": "/kaggle/input/hq44kseg/DIS5K/DIS5K/DIS-TR/im",
+                 "gt_dir": "/kaggle/input/hq44kseg/DIS5K/DIS5K/DIS-TR/gt",
                  "im_ext": ".jpg",
                  "gt_ext": ".png"}
 
     dataset_thin = {"name": "ThinObject5k-TR",
-                 "im_dir": "/kaggle/input/thinobject5k/thin_object_detection/ThinObject5K/images_train",
-                 "gt_dir": "/kaggle/input/thinobject5k/thin_object_detection/ThinObject5K/masks_train",
+                 "im_dir": "/kaggle/input/hq44kseg/thin_object_detection/ThinObject5K/images_train",
+                 "gt_dir": "/kaggle/input/hq44kseg/thin_object_detection/ThinObject5K/masks_train",
                  "im_ext": ".jpg",
                  "gt_ext": ".png"}
 
     dataset_fss = {"name": "FSS",
-                 "im_dir": "./data/cascade_psp/fss_all",
-                 "gt_dir": "./data/cascade_psp/fss_all",
+                 "im_dir": "/kaggle/input/hq44kseg/cascade_psp/fss_all",
+                 "gt_dir": "/kaggle/input/hq44kseg/cascade_psp/fss_all",
                  "im_ext": ".jpg",
                  "gt_ext": ".png"}
 
     dataset_duts = {"name": "DUTS-TR",
-                 "im_dir": "./data/cascade_psp/DUTS-TR",
-                 "gt_dir": "./data/cascade_psp/DUTS-TR",
+                 "im_dir": "/kaggle/input/hq44kseg/cascade_psp/DUTS-TR",
+                 "gt_dir": "/kaggle/input/hq44kseg/cascade_psp/DUTS-TR",
                  "im_ext": ".jpg",
                  "gt_ext": ".png"}
 
     dataset_duts_te = {"name": "DUTS-TE",
-                 "im_dir": "./data/cascade_psp/DUTS-TE",
-                 "gt_dir": "./data/cascade_psp/DUTS-TE",
+                 "im_dir": "/kaggle/input/hq44kseg/cascade_psp/DUTS-TE",
+                 "gt_dir": "/kaggle/input/hq44kseg/cascade_psp/DUTS-TE",
                  "im_ext": ".jpg",
                  "gt_ext": ".png"}
 
     dataset_ecssd = {"name": "ECSSD",
-                 "im_dir": "./data/cascade_psp/ecssd",
-                 "gt_dir": "./data/cascade_psp/ecssd",
+                 "im_dir": "/kaggle/input/hq44kseg/cascade_psp/ecssd",
+                 "gt_dir": "/kaggle/input/hq44kseg/cascade_psp/ecssd",
                  "im_ext": ".jpg",
                  "gt_ext": ".png"}
 
     dataset_msra = {"name": "MSRA10K",
-                 "im_dir": "./data/cascade_psp/MSRA_10K",
-                 "gt_dir": "./data/cascade_psp/MSRA_10K",
+                 "im_dir": "/kaggle/input/hq44kseg/cascade_psp/MSRA_10K",
+                 "gt_dir": "/kaggle/input/hq44kseg/cascade_psp/MSRA_10K",
                  "im_ext": ".jpg",
                  "gt_ext": ".png"}
 
     # valid set
     dataset_coift_val = {"name": "COIFT",
-                 "im_dir": "/kaggle/input/thinobject5k/thin_object_detection/COIFT/images",
-                 "gt_dir": "/kaggle/input/thinobject5k/thin_object_detection/COIFT/masks",
+                 "im_dir": "/kaggle/input/hq44kseg/thin_object_detection/COIFT/images",
+                 "gt_dir": "/kaggle/input/hq44kseg/thin_object_detection/COIFT/masks",
                  "im_ext": ".jpg",
                  "gt_ext": ".png"}
 
@@ -694,19 +694,19 @@ if __name__ == "__main__":
                  "gt_ext": ".png"}
 
     dataset_thin_val = {"name": "ThinObject5k-TE",
-                 "im_dir": "/kaggle/input/thinobject5k/thin_object_detection/ThinObject5K/images_test",
-                 "gt_dir": "/kaggle/input/thinobject5k/thin_object_detection/ThinObject5K/masks_test",
+                 "im_dir": "/kaggle/input/hq44kseg/thin_object_detection/ThinObject5K/images_test",
+                 "gt_dir": "/kaggle/input/hq44kseg/thin_object_detection/ThinObject5K/masks_test",
                  "im_ext": ".jpg",
                  "gt_ext": ".png"}
 
     dataset_dis_val = {"name": "DIS5K-VD",
-                 "im_dir": "./data/DIS5K/DIS-VD/im",
-                 "gt_dir": "./data/DIS5K/DIS-VD/gt",
+                 "im_dir": "/kaggle/input/hq44kseg/DIS5K/DIS5K/DIS-VD/im",
+                 "gt_dir": "/kaggle/input/hq44kseg/DIS5K/DIS5K/DIS-VD/gt",
                  "im_ext": ".jpg",
                  "gt_ext": ".png"}
 
-    train_datasets = [dataset_thin]
-    valid_datasets = [dataset_thin_val] 
+    train_datasets = [dataset_dis,dataset_thin,dataset_fss,dataset_duts,dataset_duts_te,dataset_ecssd,dataset_msra]
+    valid_datasets = [dataset_thin_val,dataset_coift_val,dataset_dis_val] 
 
     # args = get_args_parser()
     net = MaskDecoderHQ("vit_b") 
