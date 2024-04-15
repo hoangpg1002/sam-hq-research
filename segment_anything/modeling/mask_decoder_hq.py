@@ -169,7 +169,7 @@ class MaskDecoderHQ(nn.Module):
         out = self.fpn(image)
         f1,f2,f3,f4=out[0],out[1],out[2],out[3]
         image_fpn_features=self.embedding_image1(f1)+self.embedding_image2(f2)+self.embedding_image3(f3)+self.embedding_image4(f4)
-        cavang_features=self.embedding_encoder(image_embeddings)+image_fpn_features+self.compress_vit_feat(vit_features)
+        cavang_features=image_fpn_features
         masks, iou_pred = self.predict_masks(
             image_embeddings=image_embeddings,
             image_pe=image_pe,

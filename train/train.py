@@ -189,7 +189,7 @@ class MaskDecoderHQ(MaskDecoder):
         out = self.fpn(image)
         f1,f2,f3,f4=out[0],out[1],out[2],out[3]
         image_fpn_features=self.embedding_image1(f1)+self.embedding_image2(f2)+self.embedding_image3(f3)+self.embedding_image4(f4)
-        cavang_features=self.embedding_encoder(image_embeddings)+image_fpn_features+self.compress_vit_feat(vit_features)
+        cavang_features=image_fpn_features
         batch_len = len(image_embeddings)
         masks = []
         iou_preds = []
@@ -705,8 +705,8 @@ if __name__ == "__main__":
                  "im_ext": ".jpg",
                  "gt_ext": ".png"}
 
-    train_datasets = [dataset_dis,dataset_thin,dataset_fss,dataset_duts,dataset_duts_te,dataset_ecssd,dataset_msra]
-    valid_datasets = [dataset_thin_val,dataset_coift_val,dataset_dis_val] 
+    train_datasets = [dataset_dis]
+    valid_datasets = [dataset_dis_val] 
 
     # args = get_args_parser()
     net = MaskDecoderHQ("vit_b") 
