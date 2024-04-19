@@ -519,6 +519,9 @@ def train(net,encoder_net, optimizer, train_dataloaders, valid_dataloaders, lr_s
             model_name = "/epoch_"+str(epoch)+".pth"
             print('come here save at', "train" + model_name)
             misc.save_on_master(net.state_dict(),"train" + model_name)
+            encoder_model = "/epoch_"+str(epoch)+".pth"
+            print('come here save at', "train" + encoder_model)
+            misc.save_on_master(encoder_net.state_dict(),"train" + encoder_model)
     
     # Finish training
     print("Training Reaches The Maximum Epoch Number")
@@ -768,7 +771,7 @@ if __name__ == "__main__":
                  "im_ext": ".jpg",
                  "gt_ext": ".png"}
 
-    train_datasets = [dataset_thin]
+    train_datasets = [dataset_thin_val]
     valid_datasets = [dataset_thin_val] 
 
     # args = get_args_parser()
