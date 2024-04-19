@@ -23,7 +23,6 @@ from utils.loss_mask import loss_masks
 import utils.misc as misc
 from typing import Optional, Tuple, Type
 from segment_anything_training.modeling import ImageEncoderViT
-from utils.common import LayerNorm2d, MLPBlock
 from sam_lora_image_encoder import LoRA_Sam
 
 
@@ -83,7 +82,7 @@ class MaskDecoderHQ(MaskDecoder):
                         )
         assert model_type in ["vit_b","vit_l","vit_h"]
         
-        checkpoint_dict = {"vit_b":"D:/StableDiffusion/sam-hq/train/pretrained_checkpoint/sam_vit_b_maskdecoder.pth",
+        checkpoint_dict = {"vit_b":"/kaggle/working/sam-hq-research/train/pretrained_checkpoint/sam_vit_b_maskdecoder.pth",
                            "vit_l":"pretrained_checkpoint/sam_vit_l_maskdecoder.pth",
                            'vit_h':"pretrained_checkpoint/sam_vit_h_maskdecoder.pth"}
         checkpoint_path = checkpoint_dict[model_type]
@@ -356,7 +355,7 @@ def main(net,encoder_net, train_datasets, valid_datasets):
     lr_scheduler = torch.optim.lr_scheduler.StepLR(optimizer, 10)
     lr_scheduler.last_epoch = 0
     train(net,encoder_net,optimizer, train_dataloaders, valid_dataloaders, lr_scheduler)
-    sam = sam_model_registry["vit_b"](checkpoint="D:/StableDiffusion/sam-hq/train/pretrained_checkpoint/sam_vit_b_01ec64.pth").to(device="cuda")
+    sam = sam_model_registry["vit_b"](checkpoint="/kaggle/working/sam-hq-research/train/pretrained_checkpoint/sam_vit_b_01ec64.pth").to(device="cuda")
     evaluate(net,encoder_net,sam, valid_dataloaders)
 
 
@@ -379,7 +378,7 @@ def train(net,encoder_net, optimizer, train_dataloaders, valid_dataloaders, lr_s
         if param.requires_grad:
             print(name)
     
-    sam = sam_model_registry["vit_b"](checkpoint="D:/StableDiffusion/sam-hq/train/pretrained_checkpoint/sam_vit_b_01ec64.pth")
+    sam = sam_model_registry["vit_b"](checkpoint="/kaggle/working/sam-hq-research/train/pretrained_checkpoint/sam_vit_b_01ec64.pth")
     for p in sam.parameters():
         p.requires_grad=False
     _ = sam.to(device="cuda")
