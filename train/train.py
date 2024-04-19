@@ -516,10 +516,10 @@ def train(net,encoder_net, optimizer, train_dataloaders, valid_dataloaders, lr_s
         net.train()  
 
         if epoch % 1 == 0:
-            model_name = "/epoch_"+str(epoch)+".pth"
+            model_name = "/epoch_"+str(epoch)+"mask_decoder.pth"
             print('come here save at', "train" + model_name)
             misc.save_on_master(net.state_dict(),"train" + model_name)
-            encoder_model = "/epoch_"+str(epoch)+".pth"
+            encoder_model = "/epoch_"+str(epoch)+"encoder.pth"
             print('come here save at', "train" + encoder_model)
             misc.save_on_master(encoder_net.state_dict(),"train" + encoder_model)
     
