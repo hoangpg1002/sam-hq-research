@@ -772,7 +772,7 @@ if __name__ == "__main__":
     valid_datasets = [dataset_thin_val] 
 
     # args = get_args_parser()
-    sam = sam_model_registry["vit_b"](checkpoint=r"D:\StableDiffusion\sam-hq\train\pretrained_checkpoint\sam_vit_b_01ec64.pth")
+    sam = sam_model_registry["vit_b"](checkpoint=r"/kaggle/working/sam-hq-research/train/pretrained_checkpoint/sam_vit_b_01ec64.pth")
     net = MaskDecoderHQ("vit_b") 
     LoRA=LoRA_Sam(sam,4)
     encoder_net=LoRA.sam.image_encoder
