@@ -430,7 +430,7 @@ def train(net,encoder_net, optimizer, train_dataloaders, valid_dataloaders, lr_s
             # sys.exit()
             # with torch.no_grad():
             #     batched_output, interm_embeddings = sam(batched_input, multimask_output=False)
-            input_images = torch.stack([preprocess(x=i["image"]) for i in batched_input], dim=0).squeeze(0)
+            input_images = torch.stack([preprocess(x=i["image"]) for i in batched_input], dim=1).squeeze(0)
             image_embeddings, interm_embeddings = encoder_net(input_images)
             outputs = []
             for image_record, curr_embedding in zip(batched_input, image_embeddings):
