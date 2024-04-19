@@ -769,8 +769,8 @@ if __name__ == "__main__":
                  "im_ext": ".jpg",
                  "gt_ext": ".png"}
 
-    train_datasets = [dataset_thin_val]
-    valid_datasets = [dataset_dis_val] 
+    train_datasets = [dataset_thin]
+    valid_datasets = [dataset_thin_val] 
 
     # args = get_args_parser()
     sam = sam_model_registry["vit_b"](checkpoint=r"D:\StableDiffusion\sam-hq\train\pretrained_checkpoint\sam_vit_b_01ec64.pth")
