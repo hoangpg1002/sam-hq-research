@@ -17,13 +17,16 @@ import cv2
 import random
 from typing import Dict, List, Tuple
 from segment_anything_training import sam_model_registry
-from segment_anything_training.modeling import TwoWayTransformer, MaskDecoder
-from torchvision.models import MobileNet_V3_Large_Weights
-from mobilenetv3fpn import mobilenetV3_fpn_backbone
+from segment_anything_training.modeling import TwoWayTransformer, MaskDecoder,ImageEncoderViT
 from utils.dataloader import get_im_gt_name_dict, create_dataloaders, RandomHFlip, Resize, LargeScaleJitter
 from utils.loss_mask import loss_masks
 import utils.misc as misc
-from FPN import MobileNetV2_dynamicFPN
+from typing import Optional, Tuple, Type
+from segment_anything_training.modeling import ImageEncoderViT
+from utils.common import LayerNorm2d, MLPBlock
+from sam_lora_image_encoder import LoRA_Sam
+
+
 
 
 class LayerNorm2d(nn.Module):
@@ -76,10 +79,11 @@ class MaskDecoderHQ(MaskDecoder):
                         num_multimask_outputs=3,
                         activation=nn.GELU,
                         iou_head_depth= 3,
-                        iou_head_hidden_dim= 256,)
+                        iou_head_hidden_dim= 256,
+                        )
         assert model_type in ["vit_b","vit_l","vit_h"]
         
-        checkpoint_dict = {"vit_b":"/kaggle/working/sam-hq-research/train/pretrained_checkpoint/sam_vit_b_maskdecoder.pth",
+        checkpoint_dict = {"vit_b":"D:/StableDiffusion/sam-hq/train/pretrained_checkpoint/sam_vit_b_maskdecoder.pth",
                            "vit_l":"pretrained_checkpoint/sam_vit_l_maskdecoder.pth",
                            'vit_h':"pretrained_checkpoint/sam_vit_h_maskdecoder.pth"}
         checkpoint_path = checkpoint_dict[model_type]
@@ -87,9 +91,6 @@ class MaskDecoderHQ(MaskDecoder):
         print("HQ Decoder init from SAM MaskDecoder")
         for n,p in self.named_parameters():
             p.requires_grad = False
-        self.fpn=mobilenetV3_fpn_backbone().to(device="cuda")
-        for p in self.fpn.parameters():
-            p.requires_grad=True
         transformer_dim=256
         vit_dim_dict = {"vit_b":768,"vit_l":1024,"vit_h":1280}
         vit_dim = vit_dim_dict[model_type]
@@ -116,49 +117,6 @@ class MaskDecoderHQ(MaskDecoder):
                                         LayerNorm2d(transformer_dim // 4),
                                         nn.GELU(),
                                         nn.Conv2d(transformer_dim // 4, transformer_dim // 8, 3, 1, 1))
-        self.embedding_image1 = nn.Sequential(
-                                            nn.Conv2d(transformer_dim,transformer_dim, kernel_size=3, stride=1,padding=1),
-                                            LayerNorm2d(transformer_dim),
-                                            nn.GELU(),
-                                            nn.Conv2d(transformer_dim,transformer_dim//8,kernel_size=1,stride=1),
-                                            LayerNorm2d(transformer_dim//8),
-                                            nn.GELU(),
-                                        )
-        self.embedding_image2 = nn.Sequential(
-                                            nn.Conv2d(transformer_dim,transformer_dim, kernel_size=3, stride=1,padding=1),
-                                            LayerNorm2d(transformer_dim),
-                                            nn.GELU(),
-                                            nn.ConvTranspose2d(transformer_dim,transformer_dim//4,kernel_size=2,stride=2),
-                                            LayerNorm2d(transformer_dim//4),
-                                            nn.GELU(),
-                                            nn.Conv2d(transformer_dim//4,transformer_dim//8,kernel_size=1,stride=1),
-                                        )
-        self.embedding_image3 = nn.Sequential(
-                                            nn.Conv2d(transformer_dim,transformer_dim, kernel_size=3, stride=1,padding=1),
-                                            LayerNorm2d(transformer_dim),
-                                            nn.GELU(),
-                                            nn.ConvTranspose2d(transformer_dim,transformer_dim//4,kernel_size=2,stride=2),
-                                            LayerNorm2d(transformer_dim//4),
-                                            nn.GELU(),
-                                            nn.ConvTranspose2d(transformer_dim//4,transformer_dim//8,kernel_size=2,stride=2),
-                                            LayerNorm2d(transformer_dim//8),
-                                            nn.GELU(),
-                                        )
-        self.embedding_image4 = nn.Sequential(
-                                            nn.Conv2d(transformer_dim,transformer_dim, kernel_size=3, stride=1,padding=1),
-                                            LayerNorm2d(transformer_dim),
-                                            nn.GELU(),
-                                            nn.ConvTranspose2d(transformer_dim,transformer_dim//4,kernel_size=2,stride=2),
-                                            LayerNorm2d(transformer_dim//4),
-                                            nn.GELU(),
-                                            nn.ConvTranspose2d(transformer_dim//4,transformer_dim//8,kernel_size=2,stride=2),
-                                            LayerNorm2d(transformer_dim//8),
-                                            nn.GELU(),
-                                            nn.ConvTranspose2d(transformer_dim//8,transformer_dim//16,kernel_size=2,stride=2),
-                                            LayerNorm2d(transformer_dim//16),
-                                            nn.GELU(),
-                                            nn.Conv2d(transformer_dim//16,transformer_dim//8,kernel_size=1,stride=1)
-                                        )
 
     def forward(
         self,
@@ -184,12 +142,9 @@ class MaskDecoderHQ(MaskDecoder):
         Returns:
           torch.Tensor: batched predicted hq masks
         """
+
         vit_features = interm_embeddings[0].permute(0, 3, 1, 2)
-        image=interm_embeddings.pop()
-        out = self.fpn(image)
-        f1,f2,f3,f4=out[0],out[1],out[2],out[3]
-        image_fpn_features=self.embedding_image1(f1)+self.embedding_image2(f2)+self.embedding_image3(f3)+self.embedding_image4(f4)
-        cavang_features=image_fpn_features
+        hq_features=self.embedding_encoder(image_embeddings)+self.compress_vit_feat(vit_features)
         batch_len = len(image_embeddings)
         masks = []
         iou_preds = []
@@ -199,7 +154,7 @@ class MaskDecoderHQ(MaskDecoder):
                 image_pe=image_pe[i_batch],
                 sparse_prompt_embeddings=sparse_prompt_embeddings[i_batch],
                 dense_prompt_embeddings=dense_prompt_embeddings[i_batch],
-                hq_feature = cavang_features[i_batch].unsqueeze(0)
+                hq_feature = hq_features[i_batch].unsqueeze(0)
             )
             masks.append(mask)
             iou_preds.append(iou_pred)
@@ -219,9 +174,8 @@ class MaskDecoderHQ(MaskDecoder):
             # singale mask output, default
             mask_slice = slice(0, 1)
             masks_sam = masks[:,mask_slice]
-        interm_embeddings.append(image)
+
         masks_hq = masks[:,slice(self.num_mask_tokens-1, self.num_mask_tokens), :, :]
-        
         if hq_token_only:
             return masks_hq
         else:
@@ -354,7 +308,7 @@ def show_box(box, ax):
 #     return parser.parse_args()
 
 
-def main(net, train_datasets, valid_datasets):
+def main(net,encoder_net, train_datasets, valid_datasets):
 
     # misc.init_distributed_mode(args)
     # print('world size: {}'.format(args.world_size))
@@ -375,7 +329,7 @@ def main(net, train_datasets, valid_datasets):
                                                                 RandomHFlip(),
                                                                 LargeScaleJitter()
                                                                 ],
-                                                    batch_size = 2,
+                                                    batch_size = 1,
                                                     training = True)
     print(len(train_dataloaders), " train dataloaders created")
 
@@ -401,23 +355,33 @@ def main(net, train_datasets, valid_datasets):
     optimizer = optim.Adam(net.parameters(), lr=0.001, betas=(0.9, 0.999), eps=1e-08, weight_decay=0)
     lr_scheduler = torch.optim.lr_scheduler.StepLR(optimizer, 10)
     lr_scheduler.last_epoch = 0
-    train(net, optimizer, train_dataloaders, valid_dataloaders, lr_scheduler)
-    sam = sam_model_registry["vit_b"](checkpoint="/kaggle/working/sam-hq-research/train/pretrained_checkpoint/sam_vit_b_01ec64.pth").to(device="cuda")
-    evaluate(net, sam, valid_dataloaders)
+    train(net,encoder_net,optimizer, train_dataloaders, valid_dataloaders, lr_scheduler)
+    sam = sam_model_registry["vit_b"](checkpoint="D:/StableDiffusion/sam-hq/train/pretrained_checkpoint/sam_vit_b_01ec64.pth").to(device="cuda")
+    evaluate(net,encoder_net,sam, valid_dataloaders)
 
 
-def train(net, optimizer, train_dataloaders, valid_dataloaders, lr_scheduler):
+def train(net,encoder_net, optimizer, train_dataloaders, valid_dataloaders, lr_scheduler):
     if misc.is_main_process():
         os.makedirs("train", exist_ok=True)
 
     epoch_start = 0
     epoch_num = 20
     train_num = len(train_dataloaders)
-
+    encoder_net.train()
+    _ =encoder_net.to(device="cuda")
+    for name,param in encoder_net.named_parameters():
+        if param.requires_grad:
+             print(name)
+    
     net.train()
     _ = net.to(device="cuda")
+    for name,param in net.named_parameters():
+        if param.requires_grad:
+            print(name)
     
-    sam = sam_model_registry["vit_b"](checkpoint="/kaggle/working/sam-hq-research/train/pretrained_checkpoint/sam_vit_b_01ec64.pth")
+    sam = sam_model_registry["vit_b"](checkpoint="D:/StableDiffusion/sam-hq/train/pretrained_checkpoint/sam_vit_b_01ec64.pth")
+    for p in sam.parameters():
+        p.requires_grad=False
     _ = sam.to(device="cuda")
     # sam = torch.nn.parallel.DistributedDataParallel(sam, device_ids=[args.gpu], find_unused_parameters=args.find_unused_params)
     
@@ -463,11 +427,52 @@ def train(net, optimizer, train_dataloaders, valid_dataloaders, lr_scheduler):
                     raise NotImplementedError
                 dict_input['original_size'] = imgs[b_i].shape[:2]
                 batched_input.append(dict_input)
+            # import sys
+            # sys.exit()
+            # with torch.no_grad():
+            #     batched_output, interm_embeddings = sam(batched_input, multimask_output=False)
+            input_images = torch.stack([preprocess(x=i["image"]) for i in batched_input], dim=0).squeeze(0)
+            image_embeddings, interm_embeddings = encoder_net(input_images)
+            outputs = []
+            for image_record, curr_embedding in zip(batched_input, image_embeddings):
+                if "point_coords" in image_record:
+                    points = (image_record["point_coords"], image_record["point_labels"])
+                else:
+                    points = None
+                with torch.no_grad():
+                    sparse_embeddings, dense_embeddings = sam.prompt_encoder(
+                        points=points,
+                        boxes=image_record.get("boxes", None),
+                        masks=image_record.get("mask_inputs", None),
+                    )
+                    low_res_masks, iou_predictions = sam.mask_decoder(
+                        image_embeddings=curr_embedding.unsqueeze(0),
+                        image_pe=sam.prompt_encoder.get_dense_pe(),
+                        sparse_prompt_embeddings=sparse_embeddings,
+                        dense_prompt_embeddings=dense_embeddings,
+                        multimask_output=False
+                    )
+                
+                masks = sam.postprocess_masks(
+                    low_res_masks,
+                    input_size=image_record["image"].shape[-2:],
+                    original_size=image_record["original_size"],
+                )
+                masks = masks > sam.mask_threshold
 
-            with torch.no_grad():
-                batched_output, interm_embeddings = sam(batched_input, multimask_output=False)
-            
-            batch_len = len(batched_output)
+                outputs.append(
+                    {
+                        "masks": masks,
+                        "iou_predictions": iou_predictions,
+                        "low_res_logits": low_res_masks,
+                        "encoder_embedding": curr_embedding.unsqueeze(0),
+                        "image_pe": sam.prompt_encoder.get_dense_pe(),
+                        "sparse_embeddings":sparse_embeddings,
+                        "dense_embeddings":dense_embeddings,
+                    }
+                )
+            batched_output=outputs
+            batch_len = len(image_embeddings)
             encoder_embedding = torch.cat([batched_output[i_l]['encoder_embedding'] for i_l in range(batch_len)], dim=0)
             image_pe = [batched_output[i_l]['image_pe'] for i_l in range(batch_len)]
             sparse_embeddings = [batched_output[i_l]['sparse_embeddings'] for i_l in range(batch_len)]
@@ -554,8 +559,10 @@ def compute_boundary_iou(preds, target):
         iou = iou + misc.boundary_iou(target[i],postprocess_preds[i])
     return iou / len(preds)
 
-def evaluate(net, sam, valid_dataloaders):
+def evaluate(net,encoder_net, sam, valid_dataloaders):
     net.eval()
+    encoder_net.eval()
+    encoder_net.to(device="cuda")
     net.to(device="cuda")
     print("Validating...")
     test_stats = {}
@@ -596,9 +603,49 @@ def evaluate(net, sam, valid_dataloaders):
                 dict_input['original_size'] = imgs[b_i].shape[:2]
                 batched_input.append(dict_input)
 
-            with torch.no_grad():
-                batched_output, interm_embeddings = sam(batched_input, multimask_output=False)
-            
+            # with torch.no_grad():
+            #     batched_output, interm_embeddings = sam(batched_input, multimask_output=False)
+            input_images = torch.stack([preprocess(x=i["image"]) for i in batched_input], dim=0).squeeze(0)
+            image_embeddings, interm_embeddings = encoder_net(input_images)
+            outputs = []
+            for image_record, curr_embedding in zip(batched_input, image_embeddings):
+                if "point_coords" in image_record:
+                    points = (image_record["point_coords"], image_record["point_labels"])
+                else:
+                    points = None
+                with torch.no_grad():
+                    sparse_embeddings, dense_embeddings = sam.prompt_encoder(
+                        points=points,
+                        boxes=image_record.get("boxes", None),
+                        masks=image_record.get("mask_inputs", None),
+                    )
+                    low_res_masks, iou_predictions = sam.mask_decoder(
+                        image_embeddings=curr_embedding.unsqueeze(0),
+                        image_pe=sam.prompt_encoder.get_dense_pe(),
+                        sparse_prompt_embeddings=sparse_embeddings,
+                        dense_prompt_embeddings=dense_embeddings,
+                        multimask_output=False
+                    )
+                
+                masks = sam.postprocess_masks(
+                    low_res_masks,
+                    input_size=image_record["image"].shape[-2:],
+                    original_size=image_record["original_size"],
+                )
+                masks = masks > sam.mask_threshold
+
+                outputs.append(
+                    {
+                        "masks": masks,
+                        "iou_predictions": iou_predictions,
+                        "low_res_logits": low_res_masks,
+                        "encoder_embedding": curr_embedding.unsqueeze(0),
+                        "image_pe": sam.prompt_encoder.get_dense_pe(),
+                        "sparse_embeddings":sparse_embeddings,
+                        "dense_embeddings":dense_embeddings,
+                    }
+                )
+            batched_output=outputs
             batch_len = len(batched_output)
             encoder_embedding = torch.cat([batched_output[i_l]['encoder_embedding'] for i_l in range(batch_len)], dim=0)
             image_pe = [batched_output[i_l]['image_pe'] for i_l in range(batch_len)]
@@ -632,6 +679,23 @@ def evaluate(net, sam, valid_dataloaders):
 
 
     return test_stats
+def preprocess(x: torch.Tensor) -> torch.Tensor:
+    """Normalize pixel values and pad to a square input."""
+    # Normalize colors
+    pixel_mean: List[float] = [123.675, 116.28, 103.53]
+    pixel_std: List[float] = [58.395, 57.12, 57.375]
+    
+    pixel_mean_tensor = torch.tensor(pixel_mean, dtype=x.dtype, device=x.device).view(1, -1, 1, 1)
+    pixel_std_tensor = torch.tensor(pixel_std, dtype=x.dtype, device=x.device).view(1, -1, 1, 1)
+    
+    x = (x - pixel_mean_tensor) / pixel_std_tensor
+
+    # Pad
+    h, w = x.shape[-2:]
+    padh = 1024 - h
+    padw = 1024 - w
+    x = F.pad(x, (0, padw, 0, padh))
+    return x
 
 
 if __name__ == "__main__":
@@ -639,51 +703,51 @@ if __name__ == "__main__":
     ### --------------- Configuring the Train and Valid datasets ---------------
 
     dataset_dis = {"name": "DIS5K-TR",
-                 "im_dir": "/kaggle/input/hq44kseg/DIS5K/DIS5K/DIS-TR/im",
-                 "gt_dir": "/kaggle/input/hq44kseg/DIS5K/DIS5K/DIS-TR/gt",
+                 "im_dir": "./data/DIS5K/DIS5K/DIS-TR/im",
+                 "gt_dir": "./data/DIS5K/DIS5K/DIS-TR/gt",
                  "im_ext": ".jpg",
                  "gt_ext": ".png"}
 
     dataset_thin = {"name": "ThinObject5k-TR",
-                 "im_dir": "/kaggle/input/hq44kseg/thin_object_detection/ThinObject5K/images_train",
-                 "gt_dir": "/kaggle/input/hq44kseg/thin_object_detection/ThinObject5K/masks_train",
+                 "im_dir": "./data/thin_object_detection/ThinObject5K/images_train",
+                 "gt_dir": "./data/thin_object_detection/ThinObject5K/masks_train",
                  "im_ext": ".jpg",
                  "gt_ext": ".png"}
 
     dataset_fss = {"name": "FSS",
-                 "im_dir": "/kaggle/input/hq44kseg/cascade_psp/fss_all",
-                 "gt_dir": "/kaggle/input/hq44kseg/cascade_psp/fss_all",
+                 "im_dir": "./data/cascade_psp/fss_all",
+                 "gt_dir": "./data/cascade_psp/fss_all",
                  "im_ext": ".jpg",
                  "gt_ext": ".png"}
 
     dataset_duts = {"name": "DUTS-TR",
-                 "im_dir": "/kaggle/input/hq44kseg/cascade_psp/DUTS-TR",
-                 "gt_dir": "/kaggle/input/hq44kseg/cascade_psp/DUTS-TR",
+                 "im_dir": "./data/cascade_psp/DUTS-TR",
+                 "gt_dir": "./data/cascade_psp/DUTS-TR",
                  "im_ext": ".jpg",
                  "gt_ext": ".png"}
 
     dataset_duts_te = {"name": "DUTS-TE",
-                 "im_dir": "/kaggle/input/hq44kseg/cascade_psp/DUTS-TE",
-                 "gt_dir": "/kaggle/input/hq44kseg/cascade_psp/DUTS-TE",
+                 "im_dir": "./data/cascade_psp/DUTS-TE",
+                 "gt_dir": "./data/cascade_psp/DUTS-TE",
                  "im_ext": ".jpg",
                  "gt_ext": ".png"}
 
     dataset_ecssd = {"name": "ECSSD",
-                 "im_dir": "/kaggle/input/hq44kseg/cascade_psp/ecssd",
-                 "gt_dir": "/kaggle/input/hq44kseg/cascade_psp/ecssd",
+                 "im_dir": "./data/cascade_psp/ecssd",
+                 "gt_dir": "./data/cascade_psp/ecssd",
                  "im_ext": ".jpg",
                  "gt_ext": ".png"}
 
     dataset_msra = {"name": "MSRA10K",
-                 "im_dir": "/kaggle/input/hq44kseg/cascade_psp/MSRA_10K",
-                 "gt_dir": "/kaggle/input/hq44kseg/cascade_psp/MSRA_10K",
+                 "im_dir": "./data/cascade_psp/MSRA_10K",
+                 "gt_dir": "./data/cascade_psp/MSRA_10K",
                  "im_ext": ".jpg",
                  "gt_ext": ".png"}
 
     # valid set
     dataset_coift_val = {"name": "COIFT",
-                 "im_dir": "/kaggle/input/hq44kseg/thin_object_detection/COIFT/images",
-                 "gt_dir": "/kaggle/input/hq44kseg/thin_object_detection/COIFT/masks",
+                 "im_dir": "./data/thin_object_detection/COIFT/images",
+                 "gt_dir": "./data/thin_object_detection/COIFT/masks",
                  "im_ext": ".jpg",
                  "gt_ext": ".png"}
 
@@ -694,21 +758,26 @@ if __name__ == "__main__":
                  "gt_ext": ".png"}
 
     dataset_thin_val = {"name": "ThinObject5k-TE",
-                 "im_dir": "/kaggle/input/hq44kseg/thin_object_detection/ThinObject5K/images_test",
-                 "gt_dir": "/kaggle/input/hq44kseg/thin_object_detection/ThinObject5K/masks_test",
+                 "im_dir": "./data/thin_object_detection/ThinObject5K/images_test",
+                 "gt_dir": "./data/thin_object_detection/ThinObject5K/masks_test",
                  "im_ext": ".jpg",
                  "gt_ext": ".png"}
 
     dataset_dis_val = {"name": "DIS5K-VD",
-                 "im_dir": "/kaggle/input/hq44kseg/DIS5K/DIS5K/DIS-VD/im",
-                 "gt_dir": "/kaggle/input/hq44kseg/DIS5K/DIS5K/DIS-VD/gt",
+                 "im_dir": "./data/DIS5K/DIS5K/DIS-VD/im",
+                 "gt_dir": "./data/DIS5K/DIS5K/DIS-VD/gt",
                  "im_ext": ".jpg",
                  "gt_ext": ".png"}
 
-    train_datasets = [dataset_dis]
+    train_datasets = [dataset_dis_val]
     valid_datasets = [dataset_dis_val] 
 
     # args = get_args_parser()
+    sam = sam_model_registry["vit_b"](checkpoint=r"D:\StableDiffusion\sam-hq\train\pretrained_checkpoint\sam_vit_b_01ec64.pth")
     net = MaskDecoderHQ("vit_b") 
-
-    main(net, train_datasets, valid_datasets)
+    LoRA=LoRA_Sam(sam,4)
+    encoder_net=LoRA.sam.image_encoder
+    # for name, param in encoder_net.named_parameters():
+    #     if param.requires_grad:
+    #         print(name)
+    main(net,encoder_net, train_datasets, valid_datasets)
