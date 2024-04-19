@@ -328,7 +328,7 @@ def main(net,encoder_net, train_datasets, valid_datasets):
                                                                 RandomHFlip(),
                                                                 LargeScaleJitter()
                                                                 ],
-                                                    batch_size = 1,
+                                                    batch_size = 2,
                                                     training = True)
     print(len(train_dataloaders), " train dataloaders created")
 
@@ -389,7 +389,7 @@ def train(net,encoder_net, optimizer, train_dataloaders, valid_dataloaders, lr_s
         metric_logger = misc.MetricLogger(delimiter="  ")
         # train_dataloaders.batch_sampler.sampler.set_epoch(epoch)
 
-        for data in metric_logger.log_every(train_dataloaders,100):
+        for data in metric_logger.log_every(train_dataloaders,500):
             inputs, labels = data['image'], data['label']
             if torch.cuda.is_available():
                 inputs = inputs.to(device="cuda")
