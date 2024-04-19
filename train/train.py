@@ -510,7 +510,7 @@ def train(net,encoder_net, optimizer, train_dataloaders, valid_dataloaders, lr_s
         train_stats = {k: meter.global_avg for k, meter in metric_logger.meters.items() if meter.count > 0}
 
         lr_scheduler.step()
-        test_stats = evaluate(net, sam, valid_dataloaders)
+        test_stats = evaluate(net,encoder_net,sam, valid_dataloaders)
         train_stats.update(test_stats)
         
         net.train()  
