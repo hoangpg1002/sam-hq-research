@@ -119,7 +119,7 @@ class AdapterImageEncoderViT(ImageEncoderViT):
         )
         assert model_type in ["vit_b","vit_l","vit_h"]
         
-        checkpoint_dict = {"vit_b":"D:\StableDiffusion\sam-hq\sam_vit_b_imageencoder.pth",
+        checkpoint_dict = {"vit_b":"/kaggle/working/sam-hq-research/train/pretrained_checkpoint/sam_vit_b_imageencoder.pth",
                            "vit_l":"pretrained_checkpoint/sam_vit_l_maskdecoder.pth",
                            'vit_h':"pretrained_checkpoint/sam_vit_h_maskdecoder.pth"}
         checkpoint_path = checkpoint_dict[model_type]
