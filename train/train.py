@@ -959,7 +959,6 @@ def evaluate(net,encoder, sam, valid_dataloaders):
     net.eval()
     net.to(device="cuda")
     encoder.eval()
-    encoder.to(device="cuda")
     print("Validating...")
     test_stats = {}
 
@@ -1061,7 +1060,6 @@ def evaluate(net,encoder, sam, valid_dataloaders):
             loss_dict = {"val_iou_"+str(k): iou, "val_boundary_iou_"+str(k): boundary_iou}
             loss_dict_reduced = misc.reduce_dict(loss_dict)
             metric_logger.update(**loss_dict_reduced)
-            torch.cuda.empty_cache()
 
 
         print('============================')
