@@ -755,9 +755,9 @@ def main(net,encoder,train_datasets, valid_datasets):
     optimizer = optim.Adam(net.parameters(), lr=0.001, betas=(0.9, 0.999), eps=1e-08, weight_decay=0)
     lr_scheduler = torch.optim.lr_scheduler.StepLR(optimizer, 10)
     lr_scheduler.last_epoch = 0
-    train(net, encoder,optimizer, train_dataloaders, valid_dataloaders, lr_scheduler)
+    #train(net, encoder,optimizer, train_dataloaders, valid_dataloaders, lr_scheduler)
     sam = sam_model_registry["vit_b"](checkpoint="/kaggle/working/sam-hq-research/train/pretrained_checkpoint/sam_vit_b_01ec64.pth").to(device="cuda")
-    #evaluate(net,encoder,sam, valid_dataloaders)
+    evaluate(net,encoder,sam, valid_dataloaders)
 
 
 def train(net, encoder,optimizer, train_dataloaders, valid_dataloaders, lr_scheduler):
