@@ -1163,7 +1163,7 @@ if __name__ == "__main__":
                  "gt_ext": ".png"}
 
     train_datasets = [dataset_thin_val]
-    valid_datasets = [dataset_coift_val] 
+    valid_datasets = [dataset_hrsod_val] 
 
     # args = get_args_parser()
     net = MaskDecoderHQ("vit_b") 
