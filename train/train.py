@@ -968,7 +968,7 @@ def evaluate(net,encoder, sam, valid_dataloaders):
         valid_dataloader = valid_dataloaders[k]
         print('valid_dataloader len:', len(valid_dataloader))
 
-        for data_val in metric_logger.log_every(valid_dataloader,10):
+        for data_val in metric_logger.log_every(valid_dataloader,50):
             imidx_val, inputs_val, labels_val, shapes_val, labels_ori = data_val['imidx'], data_val['image'], data_val['label'], data_val['shape'], data_val['ori_label']
 
             if torch.cuda.is_available():
@@ -1061,6 +1061,7 @@ def evaluate(net,encoder, sam, valid_dataloaders):
             loss_dict = {"val_iou_"+str(k): iou, "val_boundary_iou_"+str(k): boundary_iou}
             loss_dict_reduced = misc.reduce_dict(loss_dict)
             metric_logger.update(**loss_dict_reduced)
+            torch.cuda.empty_cache()
 
 
         print('============================')
