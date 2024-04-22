@@ -903,7 +903,7 @@ def train(net, encoder,optimizer, train_dataloaders, valid_dataloaders, lr_sched
         train_stats = {k: meter.global_avg for k, meter in metric_logger.meters.items() if meter.count > 0}
 
         lr_scheduler.step()
-        test_stats = evaluate(net, sam, valid_dataloaders)
+        test_stats = evaluate(net,encoder,sam, valid_dataloaders)
         train_stats.update(test_stats)
         
         net.train()  
@@ -912,6 +912,10 @@ def train(net, encoder,optimizer, train_dataloaders, valid_dataloaders, lr_sched
             model_name = "/epoch_"+str(epoch)+".pth"
             print('come here save at', "train" + model_name)
             misc.save_on_master(net.state_dict(),"train" + model_name)
+
+            model_encoder= "/epoch_"+str(epoch)+"_encoder.pth"
+            print('come here save at', "train" + model_encoder)
+            misc.save_on_master(encoder.state_dict(),"train" + model_encoder)
     
     # Finish training
     print("Training Reaches The Maximum Epoch Number")
@@ -962,7 +966,7 @@ def evaluate(net, sam, valid_dataloaders):
         valid_dataloader = valid_dataloaders[k]
         print('valid_dataloader len:', len(valid_dataloader))
 
-        for data_val in metric_logger.log_every(valid_dataloader,50):
+        for data_val in metric_logger.log_every(valid_dataloader,100):
             imidx_val, inputs_val, labels_val, shapes_val, labels_ori = data_val['imidx'], data_val['image'], data_val['label'], data_val['shape'], data_val['ori_label']
 
             if torch.cuda.is_available():
@@ -992,10 +996,47 @@ def evaluate(net, sam, valid_dataloaders):
                     raise NotImplementedError
                 dict_input['original_size'] = imgs[b_i].shape[:2]
                 batched_input.append(dict_input)
+            input_images = torch.stack([sam.preprocess(x=i["image"]) for i in batched_input], dim=0)
+            image_embeddings, interm_embeddings = encoder(input_images)
+            outputs = []
+            for image_record, curr_embedding in zip(batched_input, image_embeddings):
+                if "point_coords" in image_record:
+                    points = (image_record["point_coords"], image_record["point_labels"])
+                else:
+                    points = None
+                with torch.no_grad():
+                    sparse_embeddings, dense_embeddings = sam.prompt_encoder(
+                        points=points,
+                        boxes=image_record.get("boxes", None),
+                        masks=image_record.get("mask_inputs", None),
+                    )
+                    low_res_masks, iou_predictions = sam.mask_decoder(
+                        image_embeddings=curr_embedding.unsqueeze(0),
+                        image_pe=sam.prompt_encoder.get_dense_pe(),
+                        sparse_prompt_embeddings=sparse_embeddings,
+                        dense_prompt_embeddings=dense_embeddings,
+                        multimask_output=False
+                    )
+                
+                masks = sam.postprocess_masks(
+                    low_res_masks,
+                    input_size=image_record["image"].shape[-2:],
+                    original_size=image_record["original_size"],
+                )
+                masks = masks > sam.mask_threshold
 
-            with torch.no_grad():
-                batched_output, interm_embeddings = sam(batched_input, multimask_output=False)
-            
+                outputs.append(
+                    {
+                        "masks": masks,
+                        "iou_predictions": iou_predictions,
+                        "low_res_logits": low_res_masks,
+                        "encoder_embedding": curr_embedding.unsqueeze(0),
+                        "image_pe": sam.prompt_encoder.get_dense_pe(),
+                        "sparse_embeddings":sparse_embeddings,
+                        "dense_embeddings":dense_embeddings,
+                    }
+                )
+            batched_output=outputs
             batch_len = len(batched_output)
             encoder_embedding = torch.cat([batched_output[i_l]['encoder_embedding'] for i_l in range(batch_len)], dim=0)
             image_pe = [batched_output[i_l]['image_pe'] for i_l in range(batch_len)]
@@ -1096,8 +1137,8 @@ if __name__ == "__main__":
 
     # valid set
     dataset_coift_val = {"name": "COIFT",
-                 "im_dir": "./data/thin_object_detection/COIFT/images",
-                 "gt_dir": "./data/thin_object_detection/COIFT/masks",
+                 "im_dir": "/kaggle/input/thinobject5k/thin_object_detection/COIFT/images",
+                 "gt_dir": "/kaggle/input/thinobject5k/thin_object_detection/COIFT/masks",
                  "im_ext": ".jpg",
                  "gt_ext": ".png"}
 
@@ -1120,7 +1161,7 @@ if __name__ == "__main__":
                  "gt_ext": ".png"}
 
     train_datasets = [dataset_thin_val]
-    valid_datasets = [dataset_thin_val] 
+    valid_datasets = [dataset_coift_val] 
 
     # args = get_args_parser()
     net = MaskDecoderHQ("vit_b") 
