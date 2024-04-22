@@ -483,7 +483,7 @@ class MaskDecoderHQ(MaskDecoder):
                         iou_head_hidden_dim= 256,)
         assert model_type in ["vit_b","vit_l","vit_h"]
         
-        checkpoint_dict = {"vit_b":"D:/StableDiffusion/sam-hq/train/pretrained_checkpoint/sam_vit_b_maskdecoder.pth",
+        checkpoint_dict = {"vit_b":"/kaggle/working/sam-hq-research/train/pretrained_checkpoint/sam_vit_b_maskdecoder.pth",
                            "vit_l":"pretrained_checkpoint/sam_vit_l_maskdecoder.pth",
                            'vit_h':"pretrained_checkpoint/sam_vit_h_maskdecoder.pth"}
         checkpoint_path = checkpoint_dict[model_type]
@@ -756,7 +756,7 @@ def main(net,encoder,train_datasets, valid_datasets):
     lr_scheduler = torch.optim.lr_scheduler.StepLR(optimizer, 10)
     lr_scheduler.last_epoch = 0
     train(net, encoder,optimizer, train_dataloaders, valid_dataloaders, lr_scheduler)
-    sam = sam_model_registry["vit_b"](checkpoint="D:/StableDiffusion/sam-hq/train/pretrained_checkpoint/sam_vit_b_01ec64.pth").to(device="cuda")
+    sam = sam_model_registry["vit_b"](checkpoint="/kaggle/working/sam-hq-research/train/pretrained_checkpoint/sam_vit_b_01ec64.pth").to(device="cuda")
     evaluate(net,encoder,sam, valid_dataloaders)
 
 
@@ -774,7 +774,7 @@ def train(net, encoder,optimizer, train_dataloaders, valid_dataloaders, lr_sched
     encoder.train()
     _ = encoder.to(device="cuda")
     
-    sam = sam_model_registry["vit_b"](checkpoint="D:/StableDiffusion/sam-hq/train/pretrained_checkpoint/sam_vit_b_01ec64.pth")
+    sam = sam_model_registry["vit_b"](checkpoint="/kaggle/working/sam-hq-research/train/pretrained_checkpoint/sam_vit_b_01ec64.pth")
     _ = sam.to(device="cuda")
     # sam = torch.nn.parallel.DistributedDataParallel(sam, device_ids=[args.gpu], find_unused_parameters=args.find_unused_params)
     
