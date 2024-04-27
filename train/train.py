@@ -22,6 +22,7 @@ from utils.dataloader import get_im_gt_name_dict, create_dataloaders, RandomHFli
 from utils.loss_mask import loss_masks
 import utils.misc as misc
 
+
 # Copyright (c) Meta Platforms, Inc. and affiliates.
 # All rights reserved.
 
@@ -34,52 +35,12 @@ import torch.nn.functional as F
 
 from typing import Optional, Tuple, Type
 
-from common import LayerNorm2d, MLPBlock
 
-class AdapterBlock(nn.Module):
-    def __init__(self, in_channels=768):
-        super(AdapterBlock, self).__init__()
-        self.branch1 = nn.Sequential(
-            nn.Conv2d(in_channels, 256, kernel_size=1),
-            nn.BatchNorm2d(256)
-        )
-        self.branch2 = nn.Sequential(
-            nn.Conv2d(in_channels, 384, kernel_size=1),
-            nn.BatchNorm2d(384),
-            nn.Conv2d(384, 512, kernel_size=3, padding=1),
-            nn.BatchNorm2d(512)
-        )
-        self.branch3 = nn.Sequential(
-            nn.Conv2d(in_channels, 64, kernel_size=1),
-            nn.BatchNorm2d(64),
-            nn.Conv2d(64, 128, kernel_size=5, padding=2),
-            nn.BatchNorm2d(128)
-        )
-        self.branch4 = nn.Sequential(
-            nn.MaxPool2d(kernel_size=3, stride=1, padding=1),
-            nn.Conv2d(in_channels, 128, kernel_size=1),
-            nn.BatchNorm2d(128)
-        )
-        self.channel_branch = nn.Sequential(
-            nn.Conv2d(1024, 768, kernel_size=1, stride=1),
-            nn.BatchNorm2d(768)
-        )
-        
-    def forward(self, x):
-        # Transpose tensor to (N, C, H, W)
-        x = x.permute(0, 3, 1, 2)
-        # Forward pass through each branch and concatenate the outputs
-        branch1_output = self.branch1(x)
-        branch2_output = self.branch2(x)
-        branch3_output = self.branch3(x)
-        branch4_output = self.branch4(x)
+from segment_anything_training.modeling.common import LayerNorm2d, MLPBlock
 
-        # Concatenate the outputs along the channel dimension
-        features = torch.cat([branch1_output, branch2_output, branch3_output, branch4_output], 1)
-        output = self.channel_branch(features) + x
-        return output.permute(0,2,3,1)
+
 # This class and its supporting functions below lightly adapted from the ViTDet backbone available at: https://github.com/facebookresearch/detectron2/blob/main/detectron2/modeling/backbone/vit.py # noqa
-class AdapterImageEncoderViT(ImageEncoderViT):
+class DualImageEncoderViT(ImageEncoderViT):
     def __init__(self,model_type):
         """
         Args:
@@ -119,29 +80,23 @@ class AdapterImageEncoderViT(ImageEncoderViT):
         )
         assert model_type in ["vit_b","vit_l","vit_h"]
         
-        checkpoint_dict = {"vit_b":"/kaggle/working/sam-hq-research/train/pretrained_checkpoint/sam_vit_b_imageencoder.pth",
+        checkpoint_dict = {"vit_b":"D:\StableDiffusion\sam-hq\sam_vit_b_imageencoder.pth",
                            "vit_l":"pretrained_checkpoint/sam_vit_l_maskdecoder.pth",
                            'vit_h':"pretrained_checkpoint/sam_vit_h_maskdecoder.pth"}
         checkpoint_path = checkpoint_dict[model_type]
         self.load_state_dict(torch.load(checkpoint_path))
-        print("Adapter Image Encoder init from SAM ImageEncoder")
+        print("Dual Image Encoder init from SAM ImageEncoder")
         for n,p in self.named_parameters():
             p.requires_grad = False
-        self.adapterBlock=AdapterBlock()
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         x = self.patch_embed(x) #(1,64,64,768)
-        patch_embed_skip=x
         if self.pos_embed is not None:
             x = x + self.pos_embed
 
         interm_embeddings=[]
-        x=self.adapterBlock(x)+patch_embed_skip
         for blk in self.blocks:
-            temp=x
             x = blk(x)
-            temp = self.adapterBlock(temp)
-            x=x+temp
             if blk.window_size == 0:
                 interm_embeddings.append(x)
 
@@ -427,8 +382,7 @@ class PatchEmbed(nn.Module):
         x = x.permute(0, 2, 3, 1)
         return x
 
-##=================================================================================
-
+#==============================================
 
 class LayerNorm2d(nn.Module):
     def __init__(self, num_channels: int, eps: float = 1e-6) -> None:
@@ -483,7 +437,7 @@ class MaskDecoderHQ(MaskDecoder):
                         iou_head_hidden_dim= 256,)
         assert model_type in ["vit_b","vit_l","vit_h"]
         
-        checkpoint_dict = {"vit_b":"/kaggle/working/sam-hq-research/train/pretrained_checkpoint/sam_vit_b_maskdecoder.pth",
+        checkpoint_dict = {"vit_b":"D:/StableDiffusion/sam-hq/train/pretrained_checkpoint/sam_vit_b_maskdecoder.pth",
                            "vit_l":"pretrained_checkpoint/sam_vit_l_maskdecoder.pth",
                            'vit_h':"pretrained_checkpoint/sam_vit_h_maskdecoder.pth"}
         checkpoint_path = checkpoint_dict[model_type]
@@ -756,11 +710,11 @@ def main(net,encoder,train_datasets, valid_datasets):
     lr_scheduler = torch.optim.lr_scheduler.StepLR(optimizer, 10)
     lr_scheduler.last_epoch = 0
     #train(net, encoder,optimizer, train_dataloaders, valid_dataloaders, lr_scheduler)
-    sam = sam_model_registry["vit_b"](checkpoint="/kaggle/working/sam-hq-research/train/pretrained_checkpoint/sam_vit_b_01ec64.pth").to(device="cuda")
+    sam = sam_model_registry["vit_b"](checkpoint="D:/StableDiffusion/sam-hq/train/pretrained_checkpoint/sam_vit_b_01ec64.pth").to(device="cuda")
     evaluate(net,encoder,sam, valid_dataloaders)
 
 
-def train(net, encoder,optimizer, train_dataloaders, valid_dataloaders, lr_scheduler):
+def train(net,encoder,optimizer, train_dataloaders, valid_dataloaders, lr_scheduler):
     if misc.is_main_process():
         os.makedirs("train", exist_ok=True)
 
@@ -770,11 +724,9 @@ def train(net, encoder,optimizer, train_dataloaders, valid_dataloaders, lr_sched
 
     net.train()
     _ = net.to(device="cuda")
-
     encoder.train()
     _ = encoder.to(device="cuda")
-    
-    sam = sam_model_registry["vit_b"](checkpoint="/kaggle/working/sam-hq-research/train/pretrained_checkpoint/sam_vit_b_01ec64.pth")
+    sam = sam_model_registry["vit_b"](checkpoint="D:/StableDiffusion/sam-hq/train/pretrained_checkpoint/sam_vit_b_01ec64.pth")
     _ = sam.to(device="cuda")
     # sam = torch.nn.parallel.DistributedDataParallel(sam, device_ids=[args.gpu], find_unused_parameters=args.find_unused_params)
     
@@ -820,12 +772,11 @@ def train(net, encoder,optimizer, train_dataloaders, valid_dataloaders, lr_sched
                     raise NotImplementedError
                 dict_input['original_size'] = imgs[b_i].shape[:2]
                 batched_input.append(dict_input)
-
             # with torch.no_grad():
             #     batched_output, interm_embeddings = sam(batched_input, multimask_output=False)
             input_images = torch.stack([sam.preprocess(x=i["image"]) for i in batched_input], dim=0)
             image_embeddings, interm_embeddings = encoder(input_images)
-            outputs = []
+            batched_output = []
             for image_record, curr_embedding in zip(batched_input, image_embeddings):
                 if "point_coords" in image_record:
                     points = (image_record["point_coords"], image_record["point_labels"])
@@ -852,7 +803,7 @@ def train(net, encoder,optimizer, train_dataloaders, valid_dataloaders, lr_sched
                 )
                 masks = masks > sam.mask_threshold
 
-                outputs.append(
+                batched_output.append(
                     {
                         "masks": masks,
                         "iou_predictions": iou_predictions,
@@ -863,7 +814,6 @@ def train(net, encoder,optimizer, train_dataloaders, valid_dataloaders, lr_sched
                         "dense_embeddings":dense_embeddings,
                     }
                 )
-            batched_output=outputs
             batch_len = len(batched_output)
             encoder_embedding = torch.cat([batched_output[i_l]['encoder_embedding'] for i_l in range(batch_len)], dim=0)
             image_pe = [batched_output[i_l]['image_pe'] for i_l in range(batch_len)]
@@ -912,10 +862,6 @@ def train(net, encoder,optimizer, train_dataloaders, valid_dataloaders, lr_sched
             model_name = "/epoch_"+str(epoch)+".pth"
             print('come here save at', "train" + model_name)
             misc.save_on_master(net.state_dict(),"train" + model_name)
-
-            model_encoder= "/epoch_"+str(epoch)+"_encoder.pth"
-            print('come here save at', "train" + model_encoder)
-            misc.save_on_master(encoder.state_dict(),"train" + model_encoder)
     
     # Finish training
     print("Training Reaches The Maximum Epoch Number")
@@ -1000,7 +946,7 @@ def evaluate(net,encoder, sam, valid_dataloaders):
                 batched_input.append(dict_input)
             input_images = torch.stack([sam.preprocess(x=i["image"]) for i in batched_input], dim=0)
             image_embeddings, interm_embeddings = encoder(input_images)
-            outputs = []
+            batched_output = []
             for image_record, curr_embedding in zip(batched_input, image_embeddings):
                 if "point_coords" in image_record:
                     points = (image_record["point_coords"], image_record["point_labels"])
@@ -1027,7 +973,7 @@ def evaluate(net,encoder, sam, valid_dataloaders):
                 )
                 masks = masks > sam.mask_threshold
 
-                outputs.append(
+                batched_output.append(
                     {
                         "masks": masks,
                         "iou_predictions": iou_predictions,
@@ -1038,7 +984,6 @@ def evaluate(net,encoder, sam, valid_dataloaders):
                         "dense_embeddings":dense_embeddings,
                     }
                 )
-            batched_output=outputs
             batch_len = len(batched_output)
             encoder_embedding = torch.cat([batched_output[i_l]['encoder_embedding'] for i_l in range(batch_len)], dim=0)
             image_pe = [batched_output[i_l]['image_pe'] for i_l in range(batch_len)]
@@ -1069,27 +1014,7 @@ def evaluate(net,encoder, sam, valid_dataloaders):
         print("Averaged stats:", metric_logger)
         resstat = {k: meter.global_avg for k, meter in metric_logger.meters.items() if meter.count > 0}
         test_stats.update(resstat)
-
-
     return test_stats
-# def preprocess(x: torch.Tensor) -> torch.Tensor:
-#     pixel_mean: List[float] = [123.675, 116.28, 103.53]
-#     pixel_std: List[float] = [58.395, 57.12, 57.375]
-#     pixel_mean = torch.tensor(pixel_mean).view(-1, 1, 1)
-#     pixel_std = torch.tensor(pixel_std).view(-1, 1, 1)
-
-#     """Normalize pixel values and pad to a square input."""
-#     # Normalize colors
-#     x = (x - pixel_mean) / pixel_std
-
-#     # Pad
-#     h, w = x.shape[-2:]
-#     img_size = 224  # Example value for image size
-#     padh = img_size - h
-#     padw = img_size - w
-#     x = F.pad(x, (0, padw, 0, padh))
-#     return x
-
 
 if __name__ == "__main__":
 
@@ -1139,8 +1064,8 @@ if __name__ == "__main__":
 
     # valid set
     dataset_coift_val = {"name": "COIFT",
-                 "im_dir": "/kaggle/input/thinobject5k/thin_object_detection/COIFT/images",
-                 "gt_dir": "/kaggle/input/thinobject5k/thin_object_detection/COIFT/masks",
+                 "im_dir": "./data/thin_object_detection/COIFT/images",
+                 "gt_dir": "./data/thin_object_detection/COIFT/masks",
                  "im_ext": ".jpg",
                  "gt_ext": ".png"}
 
@@ -1151,8 +1076,8 @@ if __name__ == "__main__":
                  "gt_ext": ".png"}
 
     dataset_thin_val = {"name": "ThinObject5k-TE",
-                 "im_dir": "/kaggle/input/thinobject5k/thin_object_detection/ThinObject5K/images_test",
-                 "gt_dir": "/kaggle/input/thinobject5k/thin_object_detection/ThinObject5K/masks_test",
+                 "im_dir": "./data/thin_object_detection/ThinObject5K/images_test",
+                 "gt_dir": "./data/thin_object_detection/ThinObject5K/masks_test",
                  "im_ext": ".jpg",
                  "gt_ext": ".png"}
 
@@ -1162,10 +1087,10 @@ if __name__ == "__main__":
                  "im_ext": ".jpg",
                  "gt_ext": ".png"}
 
-    train_datasets = [dataset_thin_val]
-    valid_datasets = [dataset_thin_val] 
+    train_datasets = [dataset_dis_val]
+    valid_datasets = [dataset_dis_val] 
 
     # args = get_args_parser()
     net = MaskDecoderHQ("vit_b") 
-    encoder=AdapterImageEncoderViT("vit_b")
+    encoder=DualImageEncoderViT("vit_b")
     main(net,encoder,train_datasets, valid_datasets)
