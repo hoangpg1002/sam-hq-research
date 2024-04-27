@@ -1064,8 +1064,8 @@ if __name__ == "__main__":
 
     # valid set
     dataset_coift_val = {"name": "COIFT",
-                 "im_dir": "./data/thin_object_detection/COIFT/images",
-                 "gt_dir": "./data/thin_object_detection/COIFT/masks",
+                 "im_dir": "/kaggle/input/thinobject5k/thin_object_detection/COIFT/images",
+                 "gt_dir": "/kaggle/input/thinobject5k/thin_object_detection/COIFT/masks",
                  "im_ext": ".jpg",
                  "gt_ext": ".png"}
 
@@ -1076,8 +1076,8 @@ if __name__ == "__main__":
                  "gt_ext": ".png"}
 
     dataset_thin_val = {"name": "ThinObject5k-TE",
-                 "im_dir": "./data/thin_object_detection/ThinObject5K/images_test",
-                 "gt_dir": "./data/thin_object_detection/ThinObject5K/masks_test",
+                 "im_dir": "/kaggle/input/thinobject5k/thin_object_detection/ThinObject5K/images_test",
+                 "gt_dir": "/kaggle/input/thinobject5k/thin_object_detection/ThinObject5K/masks_test",
                  "im_ext": ".jpg",
                  "gt_ext": ".png"}
 
@@ -1087,8 +1087,8 @@ if __name__ == "__main__":
                  "im_ext": ".jpg",
                  "gt_ext": ".png"}
 
-    train_datasets = [dataset_dis_val]
-    valid_datasets = [dataset_dis_val] 
+    train_datasets = [dataset_coift_val]
+    valid_datasets = [dataset_coift_val,dataset_hrsod_val,dataset_thin_val] 
 
     # args = get_args_parser()
     net = MaskDecoderHQ("vit_b") 
