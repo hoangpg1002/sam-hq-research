@@ -631,11 +631,16 @@ def train(net,encoder,optimizer, train_dataloaders, valid_dataloaders, lr_schedu
         train_stats.update(test_stats)
         
         net.train()  
+        encoder.train()
 
         if epoch % 1 == 0:
-            model_name = "/epoch_"+str(epoch)+".pth"
+            model_name = "/epoch_"+str(epoch)+"decoder.pth"
             print('come here save at', "train" + model_name)
             misc.save_on_master(net.state_dict(),"train" + model_name)
+
+            model_name = "/epoch_"+str(epoch)+"encoder.pth"
+            print('come here save at', "train" + model_name)
+            misc.save_on_master(encoder.state_dict(),"train" + model_name)
     
     # Finish training
     print("Training Reaches The Maximum Epoch Number")
