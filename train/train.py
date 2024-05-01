@@ -61,6 +61,7 @@ class CrossBranchAdapter(nn.Module):
         self.downchannel=nn.Conv2d(in_channels=1536,out_channels=256,kernel_size=1,stride=1)
         self.max_pool = nn.MaxPool2d(kernel_size=3, stride=1,padding=1)
         self.mean_pool = nn.AvgPool2d(kernel_size=3, stride=1,padding=1)
+        self.act=nn.Sigmoid()
     def forward(self, tensor1, tensor2):
         # Concatenate 2 tensors along the channel dimension
         concat_tensor = tensor1.permute(0, 3, 1, 2)+tensor2.permute(0, 3, 1, 2) #([1, 768, 64, 64])
@@ -75,10 +76,10 @@ class CrossBranchAdapter(nn.Module):
         pooled_concat = torch.cat((max_pooled, mean_pooled), dim=1)
         pooled_concat = self.downchannel(pooled_concat)
         conv_out=self.conv(pooled_concat)
+        conv_out=self.act(conv_out)
         # Convolutional layer
         conv_out = self.upchannel(conv_out) + skip_connect #torch.Size([1, 768, 64, 64])
         return conv_out.permute(0,2,3,1)
-
 # This class and its supporting functions below lightly adapted from the ViTDet backbone available at: https://github.com/facebookresearch/detectron2/blob/main/detectron2/modeling/backbone/vit.py # noqa
 class DualImageEncoderViT(ImageEncoderViT):
     def __init__(self,model_type):
