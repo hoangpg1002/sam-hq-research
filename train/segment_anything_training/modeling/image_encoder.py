@@ -15,23 +15,26 @@ from .common import LayerNorm2d, MLPBlock
 class CrossBranchAdapter(nn.Module):
     def __init__(self):
         super(CrossBranchAdapter, self).__init__()
-        self.conv = nn.Conv2d(in_channels=1536,out_channels=768,kernel_size=3, padding=1, stride=1)
+        self.conv = nn.Conv2d(in_channels=512,out_channels=768,kernel_size=3, padding=1, stride=1)
+        self.downchannel=nn.Conv2d(in_channels=768,out_channels=256,kernel_size=1,stride=1)
         self.max_pool = nn.MaxPool2d(kernel_size=3, stride=1,padding=1)
         self.mean_pool = nn.AvgPool2d(kernel_size=3, stride=1,padding=1)
     def forward(self, tensor1, tensor2):
         # Concatenate 2 tensors along the channel dimension
         concat_tensor = tensor1.permute(0, 3, 1, 2)+tensor2.permute(0, 3, 1, 2) #([1, 768, 64, 64])
+        skip_connect=concat_tensor
+        concat_tensor = self.downchannel(concat_tensor)
 
         # Max and Mean pooling operations on concat_tensor
 
         max_pooled = self.max_pool(concat_tensor) #torch.Size([1, 768, 64, 64])
         mean_pooled = self.mean_pool(concat_tensor) #torch.Size([1, 768, 64, 64])
+        
         # Concatenate the pooled tensors along the channel dimension
         pooled_concat = torch.cat((max_pooled, mean_pooled), dim=1)
         
         # Convolutional layer
-        conv_out = self.conv(pooled_concat) #torch.Size([1, 768, 64, 64])
-        conv_out = conv_out + (conv_out * concat_tensor)
+        conv_out = self.conv(pooled_concat) + skip_connect #torch.Size([1, 768, 64, 64])
         return conv_out.permute(0,2,3,1)
 # This class and its supporting functions below lightly adapted from the ViTDet backbone available at: https://github.com/facebookresearch/detectron2/blob/main/detectron2/modeling/backbone/vit.py # noqa
 class ImageEncoderViT(nn.Module):
