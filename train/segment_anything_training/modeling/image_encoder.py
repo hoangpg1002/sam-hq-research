@@ -32,8 +32,6 @@ class CrossBranchAdapter(nn.Module):
         
         # Concatenate the pooled tensors along the channel dimension
         pooled_concat = torch.cat((max_pooled, mean_pooled), dim=1)
-        print(pooled_concat.shape)
-        print(self.conv(pooled_concat).shape)
         conv_out=self.conv(pooled_concat)
         # Convolutional layer
         conv_out = self.upchannel(conv_out) + skip_connect #torch.Size([1, 768, 64, 64])
