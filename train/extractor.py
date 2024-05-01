@@ -1,4 +1,4 @@
-from modeling.common import LayerNorm2d
+from segment_anything_training.modeling.common import LayerNorm2d
 import torch.nn as nn
 
 class DoubleConv(nn.Module):
