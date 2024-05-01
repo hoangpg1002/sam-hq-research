@@ -15,9 +15,9 @@ from .common import LayerNorm2d, MLPBlock
 class CrossBranchAdapter(nn.Module):
     def __init__(self):
         super(CrossBranchAdapter, self).__init__()
-        self.conv = nn.Conv2d(in_channels=256,out_channels=256,kernel_size=3, padding=1, stride=1)
+        self.conv = nn.Conv2d(in_channels=512,out_channels=256,kernel_size=3, padding=1, stride=1)
         self.upchannel=nn.Conv2d(in_channels=256,out_channels=768,kernel_size=1,stride=1)
-        self.downchannel=nn.Conv2d(in_channels=1536,out_channels=256,kernel_size=1,stride=1)
+        self.downchannel=nn.Conv2d(in_channels=768,out_channels=256,kernel_size=1,stride=1)
         self.max_pool = nn.MaxPool2d(kernel_size=3, stride=1,padding=1)
         self.mean_pool = nn.AvgPool2d(kernel_size=3, stride=1,padding=1)
         self.act=nn.Sigmoid()
@@ -25,7 +25,7 @@ class CrossBranchAdapter(nn.Module):
         # Concatenate 2 tensors along the channel dimension
         concat_tensor = tensor1.permute(0, 3, 1, 2)+tensor2.permute(0, 3, 1, 2) #([1, 768, 64, 64])
         skip_connect=concat_tensor
-        #concat_tensor = self.downchannel(concat_tensor)
+        concat_tensor = self.downchannel(concat_tensor)
 
         # Max and Mean pooling operations on concat_tensor
 
@@ -33,7 +33,7 @@ class CrossBranchAdapter(nn.Module):
         mean_pooled = self.mean_pool(concat_tensor) #torch.Size([1, 768, 64, 64])
         # Concatenate the pooled tensors along the channel dimension
         pooled_concat = torch.cat((max_pooled, mean_pooled), dim=1)
-        pooled_concat = self.downchannel(pooled_concat)
+        #pooled_concat = self.downchannel(pooled_concat)
         conv_out=self.conv(pooled_concat)
         conv_out=self.act(conv_out)
         # Convolutional layer
