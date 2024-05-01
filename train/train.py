@@ -22,7 +22,7 @@ from utils.dataloader import get_im_gt_name_dict, create_dataloaders, RandomHFli
 from utils.loss_mask import loss_masks
 import utils.misc as misc
 import sys
-from mobilenetv3.mobilenet import mobilenetv3_large
+from mobilenetv3.mobilenet import mobilenetv3_small
 
 # Copyright (c) Meta Platforms, Inc. and affiliates.
 # All rights reserved.
@@ -42,9 +42,9 @@ from segment_anything_training.modeling.common import LayerNorm2d, MLPBlock
 class mobilenetv3Large(nn.Module):
     def __init__(self):
         super(mobilenetv3Large, self).__init__()
-        self.model=mobilenetv3_large()
+        self.model=mobilenetv3_small()
         self.feature_extractor=self.model.features
-        self.convTs1=nn.ConvTranspose2d(160,256,kernel_size=2,stride=2)
+        self.convTs1=nn.ConvTranspose2d(96,256,kernel_size=2,stride=2)
         self.upchannel=nn.Conv2d(256,768,kernel_size=1,stride=1)
 
     def forward(self, x):
