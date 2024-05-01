@@ -16,7 +16,7 @@ class CrossBranchAdapter(nn.Module):
     def __init__(self):
         super(CrossBranchAdapter, self).__init__()
         self.conv = nn.Conv2d(in_channels=128,out_channels=64,kernel_size=3, padding=1, stride=1)
-        self.upchannel=nn.Conv2d(in_channels=64,out_channels=768,kernel_size=1,stride=1)
+        self.upchannel=nn.Conv2d(in_channels=128,out_channels=768,kernel_size=1,stride=1)
         self.downchannel=nn.Conv2d(in_channels=768,out_channels=64,kernel_size=1,stride=1)
         self.max_pool = nn.MaxPool2d(kernel_size=3, stride=1,padding=1)
         self.mean_pool = nn.AvgPool2d(kernel_size=3, stride=1,padding=1)
@@ -210,9 +210,8 @@ class Block(nn.Module):
             x = window_unpartition(x, self.window_size, pad_hw, (H, W))
 
         x = shortcut + x
-        xnorm2=self.norm2(x)
-        features=self.cross_branch_adapter(xnorm2,add_features)
-        x = x + self.mlp(self.norm2(x)) + features
+        x = self.cross_branch_adapter(x,add_features)
+        x = x + self.mlp(self.norm2(x))
 
         return x
 
