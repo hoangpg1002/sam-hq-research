@@ -15,7 +15,7 @@ from .common import LayerNorm2d, MLPBlock
 class CrossBranchAdapter(nn.Module):
     def __init__(self):
         super(CrossBranchAdapter, self).__init__()
-        self.conv = nn.Conv2d(in_channels=128,out_channels=64,kernel_size=3, padding=1, stride=1)
+        self.conv = nn.Conv2d(in_channels=128,out_channels=128,kernel_size=3, padding=1, stride=1)
         self.upchannel=nn.Conv2d(in_channels=128,out_channels=768,kernel_size=1,stride=1)
         self.downchannel=nn.Conv2d(in_channels=768,out_channels=64,kernel_size=1,stride=1)
         self.max_pool = nn.MaxPool2d(kernel_size=3, stride=1,padding=1)
@@ -35,9 +35,9 @@ class CrossBranchAdapter(nn.Module):
         pooled_concat = torch.cat((max_pooled, mean_pooled), dim=1)
         #pooled_concat = self.downchannel(pooled_concat)
         conv_out=self.conv(pooled_concat)
-        conv_out=self.act(conv_out)
+        conv_out=self.upchannel(conv_out)
         # Convolutional layer
-        conv_out = self.upchannel(conv_out) + skip_connect #torch.Size([1, 768, 64, 64])
+        conv_out = self.act(conv_out) + skip_connect #torch.Size([1, 768, 64, 64])
         return conv_out.permute(0,2,3,1)
 # This class and its supporting functions below lightly adapted from the ViTDet backbone available at: https://github.com/facebookresearch/detectron2/blob/main/detectron2/modeling/backbone/vit.py # noqa
 class ImageEncoderViT(nn.Module):
