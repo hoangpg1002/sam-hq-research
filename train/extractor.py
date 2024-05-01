@@ -1,6 +1,6 @@
 from segment_anything_training.modeling.common import LayerNorm2d
 import torch.nn as nn
-
+import torch
 class DoubleConv(nn.Module):
     """(convolution => [BN] => ReLU) * 2"""
 
@@ -12,9 +12,6 @@ class DoubleConv(nn.Module):
             nn.Conv2d(in_channels, mid_channels, kernel_size=3,stride=2, padding=1, bias=False),
             LayerNorm2d(mid_channels),
             nn.GELU(),
-            nn.Conv2d(mid_channels, out_channels, kernel_size=3,stride=2, padding=1, bias=False),
-            LayerNorm2d(out_channels),
-            nn.GELU()
         )
 
     def forward(self, x):
@@ -37,21 +34,23 @@ class Down(nn.Module):
 class UNet(nn.Module):
     def __init__(self):
         super(UNet, self).__init__()
-        self.inc = DoubleConv(3, 64)
-        self.down1 = Down(64, 128)
+        self.inc = DoubleConv(3, 32)
+        self.down1 = Down(32, 64)
+        self.down2 = Down(64,128)
         self.up = nn.Upsample(scale_factor=2, mode='bilinear', align_corners=True)
         self.upChannel=nn.Conv2d(128,768,kernel_size=1,stride=1)
 
     def forward(self, x):
         x1 = self.inc(x)
         x2 = self.down1(x1)
-        x3 =self.up(x2)
+        x3 = self.down2(x2)
+        x3 =self.up(x3)
         x4 = self.upChannel(x3)
         return x4
 
-# model = UNet()
-# device = "cuda" if torch.cuda.is_available() else "cpu"
-# model.to(device)
-# x = torch.randn(1, 3, 1024, 1024).to(device)
-# print(model(x).shape)
+model = UNet()
+device = "cuda" if torch.cuda.is_available() else "cpu"
+model.to(device)
+x = torch.randn(1, 3, 1024, 1024).to(device)
+print(model(x).shape)
 
