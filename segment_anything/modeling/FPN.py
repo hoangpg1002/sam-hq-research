@@ -230,8 +230,4 @@ net = MobileNetV2_dynamicFPN()
 output = net(torch.randn(1, 3, 1024, 1024))
 for feature_map in output:
     print(feature_map.size())
-f0,f1,f2,f3,f4=output[0],output[1],output[2],output[3],output[4]
-print(f4.shape)
-test_shape=embedding_imagelocal(f4)
 
-print(test_shape.shape)

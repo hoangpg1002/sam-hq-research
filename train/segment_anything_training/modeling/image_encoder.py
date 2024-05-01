@@ -12,7 +12,27 @@ from typing import Optional, Tuple, Type
 
 from .common import LayerNorm2d, MLPBlock
 
+class CrossBranchAdapter(nn.Module):
+    def __init__(self):
+        super(CrossBranchAdapter, self).__init__()
+        self.conv = nn.Conv2d(in_channels=1536,out_channels=768,kernel_size=3, padding=1, stride=1)
+        self.max_pool = nn.MaxPool2d(kernel_size=3, stride=1,padding=1)
+        self.mean_pool = nn.AvgPool2d(kernel_size=3, stride=1,padding=1)
+    def forward(self, tensor1, tensor2):
+        # Concatenate 2 tensors along the channel dimension
+        concat_tensor = tensor1.permute(0, 3, 1, 2)+tensor2.permute(0, 3, 1, 2) #([1, 768, 64, 64])
 
+        # Max and Mean pooling operations on concat_tensor
+
+        max_pooled = self.max_pool(concat_tensor) #torch.Size([1, 768, 64, 64])
+        mean_pooled = self.mean_pool(concat_tensor) #torch.Size([1, 768, 64, 64])
+        # Concatenate the pooled tensors along the channel dimension
+        pooled_concat = torch.cat((max_pooled, mean_pooled), dim=1)
+        
+        # Convolutional layer
+        conv_out = self.conv(pooled_concat) #torch.Size([1, 768, 64, 64])
+        conv_out = conv_out + (conv_out * concat_tensor)
+        return conv_out.permute(0,2,3,1)
 # This class and its supporting functions below lightly adapted from the ViTDet backbone available at: https://github.com/facebookresearch/detectron2/blob/main/detectron2/modeling/backbone/vit.py # noqa
 class ImageEncoderViT(nn.Module):
     def __init__(
@@ -167,10 +187,12 @@ class Block(nn.Module):
         self.mlp = MLPBlock(embedding_dim=dim, mlp_dim=int(dim * mlp_ratio), act=act_layer)
 
         self.window_size = window_size
+        self.cross_branch_adapter=CrossBranchAdapter()
 
-    def forward(self, x: torch.Tensor) -> torch.Tensor:
+    def forward(self, x: torch.Tensor,add_features: torch.Tensor) -> torch.Tensor:
         shortcut = x
-        x = self.norm1(x)
+        x=self.cross_branch_adapter(self.norm1(x),add_features)
+        #x = self.norm1(x)
         # Window partition
         if self.window_size > 0:
             H, W = x.shape[1], x.shape[2]
