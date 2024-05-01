@@ -217,7 +217,7 @@ class Block(nn.Module):
         x = shortcut + x
         xnorm2=self.norm2(x)
         add_features_higher=self.convmodule(add_features.permute(0,3,1,2))
-        features=self.cross_branch_adapter(xnorm2,add_features_higher)
+        features=self.cross_branch_adapter(xnorm2,add_features_higher.permute(0,2,3,1))
         x = x + self.mlp(self.norm2(x)) +features
 
         return x
