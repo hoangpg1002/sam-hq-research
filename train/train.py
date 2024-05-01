@@ -132,19 +132,26 @@ class DualImageEncoderViT(ImageEncoderViT):
                 param.requires_grad = False
         self.feature_extractor=mobilenetv3Large()
     def forward(self, x: torch.Tensor) -> torch.Tensor:
-        add_features=self.feature_extractor(x)
-        x = self.patch_embed(x) #(1,64,64,768)
-        if self.pos_embed is not None:
-            x = x + self.pos_embed
+            image_with_grad=self.generalized_image_grad(x) + x
+            add_features=self.feature_extractor(image_with_grad)
+            x = self.patch_embed(x) #(1,64,64,768)
+            if self.pos_embed is not None:
+                x = x + self.pos_embed
 
-        interm_embeddings=[]
-        for blk in self.blocks:
-            x = blk(x,add_features)
-            if blk.window_size == 0:
-                interm_embeddings.append(x)
+            interm_embeddings=[]
+            for blk in self.blocks:
+                x = blk(x,add_features)
+                if blk.window_size == 0:
+                    interm_embeddings.append(x)
 
-        x = self.neck(x.permute(0, 3, 1, 2))
-        return x, interm_embeddings
+            x = self.neck(x.permute(0, 3, 1, 2))
+            return x, interm_embeddings
+    def generalized_image_grad(self,x):
+        im_arr = x.squeeze(0).cpu().numpy().transpose((1, 2, 0)).astype(np.uint8)
+        canny = cv2.Canny(im_arr, 10, 100)
+        canny = torch.from_numpy(canny).to("cuda").float() /255.0
+        image_grad=torch.stack([canny] * 3, dim=0)
+        return image_grad
 
 
 
