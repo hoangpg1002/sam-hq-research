@@ -207,7 +207,8 @@ class Block(nn.Module):
             x = window_unpartition(x, self.window_size, pad_hw, (H, W))
 
         x = shortcut + x
-        x = x + self.mlp(self.norm2(x))
+        shortcut_x = self.cross_branch_adapter(self.norm2(x),add_features)
+        x = x + self.mlp(self.norm2(x)) + shortcut_x
 
         return x
 
