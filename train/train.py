@@ -116,7 +116,7 @@ class DualImageEncoderViT(ImageEncoderViT):
         )
         assert model_type in ["vit_b","vit_l","vit_h"]
         
-        checkpoint_dict = {"vit_b":r"D:\StableDiffusion\sam-hq\train\pretrained_checkpoint\sam_vit_b_imageencoder.pth",
+        checkpoint_dict = {"vit_b":"/kaggle/working/training/pretrained_checkpoint/sam_vit_b_imageencoder.pth",
                            "vit_l":"pretrained_checkpoint/sam_vit_l_maskdecoder.pth",
                            'vit_h':"pretrained_checkpoint/sam_vit_h_maskdecoder.pth"}
         checkpoint_path = checkpoint_dict[model_type]
@@ -202,7 +202,7 @@ class MaskDecoderHQ(MaskDecoder):
                         iou_head_hidden_dim= 256,)
         assert model_type in ["vit_b","vit_l","vit_h"]
         
-        checkpoint_dict = {"vit_b":"D:/StableDiffusion/sam-hq/train/pretrained_checkpoint/sam_vit_b_maskdecoder.pth",
+        checkpoint_dict = {"vit_b":"/kaggle/working/training/pretrained_checkpoint/sam_vit_b_maskdecoder.pth",
                            "vit_l":"pretrained_checkpoint/sam_vit_l_maskdecoder.pth",
                            'vit_h':"pretrained_checkpoint/sam_vit_h_maskdecoder.pth"}
         checkpoint_path = checkpoint_dict[model_type]
@@ -475,7 +475,7 @@ def main(net,encoder,train_datasets, valid_datasets):
     lr_scheduler = torch.optim.lr_scheduler.StepLR(optimizer, 10)
     lr_scheduler.last_epoch = 0
     #train(net, encoder,optimizer, train_dataloaders, valid_dataloaders, lr_scheduler)
-    sam = sam_model_registry["vit_b"](checkpoint="D:/StableDiffusion/sam-hq/train/pretrained_checkpoint/sam_vit_b_01ec64.pth").to(device="cuda")
+    sam = sam_model_registry["vit_b"](checkpoint="/kaggle/working/training/pretrained_checkpoint/sam_vit_b_01ec64.pth").to(device="cuda")
     evaluate(net,encoder,sam, valid_dataloaders)
 
 
@@ -499,7 +499,7 @@ def train(net,encoder,optimizer, train_dataloaders, valid_dataloaders, lr_schedu
     for n,p in net.named_parameters():
         if p.requires_grad:
             print(n)
-    sam = sam_model_registry["vit_b"](checkpoint="D:/StableDiffusion/sam-hq/train/pretrained_checkpoint/sam_vit_b_01ec64.pth")
+    sam = sam_model_registry["vit_b"](checkpoint="/kaggle/working/training/pretrained_checkpoint/sam_vit_b_01ec64.pth")
     _ = sam.to(device="cuda")
     # sam = torch.nn.parallel.DistributedDataParallel(sam, device_ids=[args.gpu], find_unused_parameters=args.find_unused_params)
     
@@ -800,8 +800,8 @@ if __name__ == "__main__":
                  "gt_ext": ".png"}
 
     dataset_thin = {"name": "ThinObject5k-TR",
-                 "im_dir": "./data/thin_object_detection/ThinObject5K/images_train",
-                 "gt_dir": "./data/thin_object_detection/ThinObject5K/masks_train",
+                 "im_dir": "/kaggle/input/thinobject5k/thin_object_detection/ThinObject5K/images_train",
+                 "gt_dir": "/kaggle/input/thinobject5k/thin_object_detection/ThinObject5K/images_test",
                  "im_ext": ".jpg",
                  "gt_ext": ".png"}
 
@@ -849,8 +849,8 @@ if __name__ == "__main__":
                  "gt_ext": ".png"}
 
     dataset_thin_val = {"name": "ThinObject5k-TE",
-                 "im_dir": "./data/thin_object_detection/ThinObject5K/images_test",
-                 "gt_dir": "./data/thin_object_detection/ThinObject5K/masks_test",
+                 "im_dir": "/kaggle/input/thinobject5k/thin_object_detection/ThinObject5K/images_test",
+                 "gt_dir": "/kaggle/input/thinobject5k/thin_object_detection/ThinObject5K/masks_test",
                  "im_ext": ".jpg",
                  "gt_ext": ".png"}
 
@@ -860,8 +860,8 @@ if __name__ == "__main__":
                  "im_ext": ".jpg",
                  "gt_ext": ".png"}
 
-    train_datasets = [dataset_dis_val]
-    valid_datasets = [dataset_dis_val] 
+    train_datasets = [dataset_thin_val]
+    valid_datasets = [dataset_thin_val] 
 
     # args = get_args_parser()
     net = MaskDecoderHQ("vit_b") 
