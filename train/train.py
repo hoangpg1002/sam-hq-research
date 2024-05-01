@@ -21,8 +21,8 @@ from segment_anything_training.modeling import TwoWayTransformer, MaskDecoder,Im
 from utils.dataloader import get_im_gt_name_dict, create_dataloaders, RandomHFlip, Resize, LargeScaleJitter
 from utils.loss_mask import loss_masks
 import utils.misc as misc
+from segment_anything_training.extractor import UNet
 import sys
-from mobilenetv3.mobilenet import mobilenetv3_small
 
 # Copyright (c) Meta Platforms, Inc. and affiliates.
 # All rights reserved.
@@ -42,15 +42,9 @@ from segment_anything_training.modeling.common import LayerNorm2d, MLPBlock
 class mobilenetv3Large(nn.Module):
     def __init__(self):
         super(mobilenetv3Large, self).__init__()
-        self.model=mobilenetv3_small()
-        self.feature_extractor=self.model.features
-        self.convTs1=nn.ConvTranspose2d(96,256,kernel_size=2,stride=2)
-        self.upchannel=nn.Conv2d(256,768,kernel_size=1,stride=1)
-
+        self.model=UNet()
     def forward(self, x):
-        output= self.feature_extractor(x)
-        output=self.convTs1(output)
-        output=self.upchannel(output)
+        output=self.model(x)
         return output.permute(0,2,3,1)
     
 class CrossBranchAdapter(nn.Module):
