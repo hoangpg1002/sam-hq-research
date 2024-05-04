@@ -187,12 +187,13 @@ class Block(nn.Module):
         self.mlp = MLPBlock(embedding_dim=dim, mlp_dim=int(dim * mlp_ratio), act=act_layer)
 
         self.window_size = window_size
-        self.cross_branch_adapter=CrossBranchAdapter()
+        #self.cross_branch_adapter=CrossBranchAdapter()
 
     def forward(self, x: torch.Tensor,add_features: torch.Tensor) -> torch.Tensor:
         shortcut = x
-        x=self.cross_branch_adapter(self.norm1(x),add_features)
-        #x = self.norm1(x)
+        #x=self.cross_branch_adapter(self.norm1(x),add_features)
+        x= x + add_features
+        x = self.norm1(x) 
         # Window partition
         if self.window_size > 0:
             H, W = x.shape[1], x.shape[2]
