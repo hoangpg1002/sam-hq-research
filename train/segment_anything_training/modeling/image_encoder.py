@@ -11,27 +11,43 @@ import torch.nn.functional as F
 from typing import Optional, Tuple, Type
 
 from .common import LayerNorm2d, MLPBlock
-
+def seed_everything(seed: int):
+    import random, os
+    import numpy as np
+    import torch
+    
+    random.seed(seed)
+    os.environ['PYTHONHASHSEED'] = str(seed)
+    np.random.seed(seed)
+    torch.manual_seed(seed)
+    torch.cuda.manual_seed(seed)
+    torch.backends.cudnn.deterministic = True
+    torch.backends.cudnn.benchmark = True
+    
+seed_everything(42)
 class CrossBranchAdapter(nn.Module):
     def __init__(self):
         super(CrossBranchAdapter, self).__init__()
-        self.conv = nn.Sequential(nn.Conv2d(in_channels=256,out_channels=128,kernel_size=3, padding=1, stride=1),
+        self.conv = nn.Sequential(nn.Conv2d(in_channels=128,out_channels=128,kernel_size=3, padding=1, stride=1),
                                   nn.Sigmoid())
         self.upchannel=nn.Conv2d(in_channels=128,out_channels=768,kernel_size=1,stride=1)
-        self.downchannel=nn.Conv2d(in_channels=768,out_channels=256,kernel_size=1,stride=1)
+        self.downchannel=nn.Conv2d(in_channels=768,out_channels=64,kernel_size=1,stride=1)
         self.max_pool = nn.MaxPool2d(kernel_size=3,padding=1,stride=1)
+        self.mean_pool = nn.AvgPool2d(kernel_size=3,padding=1,stride=1)
     def forward(self, tensor1, tensor2):
         # Concatenate 2 tensors along the channel dimension
+        shortcut=tensor1.permute(0, 3, 1, 2)
         concat_tensor = tensor1.permute(0, 3, 1, 2) + tensor2.permute(0, 3, 1, 2) #([1, 768, 64, 64])
-        skip_connect=concat_tensor
         concat_tensor = self.downchannel(concat_tensor)
 
         # Max and Mean pooling operations on concat_tensor
 
         max_pooled = self.max_pool(concat_tensor) #torch.Size([1, 768, 64, 64])
-        conv_out=self.conv(max_pooled)
+        mean_pool = self.mean_pool(concat_tensor)
+        pooled_concat=torch.cat([max_pooled,mean_pool],dim=1)
+        conv_out=self.conv(pooled_concat)
         # Convolutional layer
-        conv_out = (self.upchannel(conv_out) *skip_connect) + skip_connect#torch.Size([1, 768, 64, 64])
+        conv_out = (self.upchannel(conv_out) *shortcut) + shortcut #torch.Size([1, 768, 64, 64])
         return conv_out.permute(0,2,3,1)
 # This class and its supporting functions below lightly adapted from the ViTDet backbone available at: https://github.com/facebookresearch/detectron2/blob/main/detectron2/modeling/backbone/vit.py # noqa
 class ImageEncoderViT(nn.Module):
@@ -187,13 +203,12 @@ class Block(nn.Module):
         self.mlp = MLPBlock(embedding_dim=dim, mlp_dim=int(dim * mlp_ratio), act=act_layer)
 
         self.window_size = window_size
-        #self.cross_branch_adapter=CrossBranchAdapter()
+        self.cross_branch_adapter=CrossBranchAdapter()
 
     def forward(self, x: torch.Tensor,add_features: torch.Tensor) -> torch.Tensor:
         shortcut = x
-        #x=self.cross_branch_adapter(self.norm1(x),add_features)
-        x= x + add_features
-        x = self.norm1(x) 
+        x=self.cross_branch_adapter(self.norm1(x),add_features)
+        #x = self.norm1(x) 
         # Window partition
         if self.window_size > 0:
             H, W = x.shape[1], x.shape[2]
