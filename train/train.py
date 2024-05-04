@@ -21,7 +21,6 @@ from segment_anything_training.modeling import TwoWayTransformer, MaskDecoder,Im
 from utils.dataloader import get_im_gt_name_dict, create_dataloaders, RandomHFlip, Resize, LargeScaleJitter
 from utils.loss_mask import loss_masks
 import utils.misc as misc
-from extractor import UNet
 import sys
 
 # Copyright (c) Meta Platforms, Inc. and affiliates.
