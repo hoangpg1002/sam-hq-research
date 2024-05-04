@@ -194,8 +194,11 @@ class Block(nn.Module):
         self.window_size = window_size
         self.cross_branch_adapter=CrossBranchAdapter()
         self.conv=nn.Sequential(
-            nn.Conv2d(768,768,3,1,1),
-            nn.GELU()
+            nn.Conv2d(768,128,1,1),
+            nn.Conv2d(128,128,3,1,1),
+            LayerNorm2d(128),
+            nn.GELU(),
+            nn.Conv2d(128,768,1,1)
         )
 
     def forward(self, x: torch.Tensor,add_features: torch.Tensor) -> torch.Tensor:
