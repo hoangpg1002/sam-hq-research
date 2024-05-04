@@ -37,7 +37,20 @@ from typing import Optional, Tuple, Type
 from efficientnet_pytorch import EfficientNet
 
 from segment_anything_training.modeling.common import LayerNorm2d, MLPBlock
-
+def seed_everything(seed: int):
+    import random, os
+    import numpy as np
+    import torch
+    
+    random.seed(seed)
+    os.environ['PYTHONHASHSEED'] = str(seed)
+    np.random.seed(seed)
+    torch.manual_seed(seed)
+    torch.cuda.manual_seed(seed)
+    torch.backends.cudnn.deterministic = True
+    torch.backends.cudnn.benchmark = True
+    
+seed_everything(42)
 class CNNextractor(nn.Module):
     def __init__(self):
         super(CNNextractor, self).__init__()
