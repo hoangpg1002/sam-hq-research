@@ -197,7 +197,6 @@ class Block(nn.Module):
 
         self.window_size = window_size
         self.cross_branch_adapter=CrossBranchAdapter()
-        self.cross_branch_adapter2=CrossBranchAdapter()
 
     def forward(self, x: torch.Tensor,add_features: torch.Tensor) -> torch.Tensor:
         shortcut = x
@@ -214,7 +213,8 @@ class Block(nn.Module):
             x = window_unpartition(x, self.window_size, pad_hw, (H, W))
 
         x = shortcut + x
-        x = x + self.mlp(self.norm2(x)) + self.cross_branch_adapter2(self.norm2(x),add_features)
+        feature = self.cross_branch_adapter(self.norm2(x),add_features)
+        x = x + self.mlp(self.norm2(x)) + feature
 
         return x
 
