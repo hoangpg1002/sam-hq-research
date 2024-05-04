@@ -15,10 +15,10 @@ from .common import LayerNorm2d, MLPBlock
 class CrossBranchAdapter(nn.Module):
     def __init__(self):
         super(CrossBranchAdapter, self).__init__()
-        self.conv = nn.Sequential(nn.Conv2d(in_channels=128,out_channels=128,kernel_size=3, padding=1, stride=1),
+        self.conv = nn.Sequential(nn.Conv2d(in_channels=256,out_channels=128,kernel_size=3, padding=1, stride=1),
                                   nn.Sigmoid())
         self.upchannel=nn.Conv2d(in_channels=128,out_channels=768,kernel_size=1,stride=1)
-        self.downchannel=nn.Conv2d(in_channels=768,out_channels=128,kernel_size=1,stride=1)
+        self.downchannel=nn.Conv2d(in_channels=768,out_channels=256,kernel_size=1,stride=1)
         self.max_pool = nn.MaxPool2d(kernel_size=3,padding=1,stride=1)
     def forward(self, tensor1, tensor2):
         # Concatenate 2 tensors along the channel dimension
