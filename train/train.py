@@ -128,7 +128,7 @@ class DualImageEncoderViT(ImageEncoderViT):
 
             interm_embeddings=[]
             for blk in self.blocks:
-                x = blk(x,add_features)
+                x = blk(x)
                 if blk.window_size == 0:
                     interm_embeddings.append(x)
 
