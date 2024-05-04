@@ -35,17 +35,24 @@ import torch.nn as nn
 import torch.nn.functional as F
 
 from typing import Optional, Tuple, Type
-
+from efficientnet_pytorch import EfficientNet
 
 from segment_anything_training.modeling.common import LayerNorm2d, MLPBlock
 
-class mobilenetv3Large(nn.Module):
+class CNNextractor(nn.Module):
     def __init__(self):
-        super(mobilenetv3Large, self).__init__()
-        self.model=UNet()
+        super(CNNextractor, self).__init__()
+        self.model= EfficientNet.from_pretrained('efficientnet-b0')
+        for n,p in self.model.named_parameters():
+            p.requires_grad=False
+        self.conv=nn.Sequential(
+                nn.Upsample(scale_factor=2, mode='bilinear', align_corners=True),
+                nn.Conv2d(1280,768,kernel_size=1,stride=1)
+            )
     def forward(self, x):
-        output=self.model(x)
-        return output.permute(0,2,3,1)
+        feature=self.model.extract_features(x)
+        feature=self.conv(feature)
+        return feature.permute(0,2,3,1)
     
 # This class and its supporting functions below lightly adapted from the ViTDet backbone available at: https://github.com/facebookresearch/detectron2/blob/main/detectron2/modeling/backbone/vit.py # noqa
 class DualImageEncoderViT(ImageEncoderViT):
@@ -99,7 +106,7 @@ class DualImageEncoderViT(ImageEncoderViT):
                 param.requires_grad = True
             else:
                 param.requires_grad = False
-        self.feature_extractor=mobilenetv3Large()
+        self.feature_extractor=CNNextractor()
     def forward(self, x: torch.Tensor) -> torch.Tensor:
             image_with_grad=self.generalized_image_grad(x) + x
             add_features=self.feature_extractor(image_with_grad)
