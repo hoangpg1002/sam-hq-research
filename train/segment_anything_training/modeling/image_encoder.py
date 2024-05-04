@@ -19,24 +19,24 @@ class CrossBranchAdapter(nn.Module):
                                   nn.Sigmoid())
         self.upchannel=nn.Conv2d(in_channels=128,out_channels=768,kernel_size=1,stride=1)
         self.downchannel=nn.Conv2d(in_channels=768,out_channels=128,kernel_size=1,stride=1)
-        self.max_pool = nn.MaxPool2d(kernel_size=3,padding=1,stride=1)
-        self.mean_pool = nn.AvgPool2d(kernel_size=3,padding=1 ,stride=1)
+        self.max_pool = nn.MaxPool2d(kernel_size=2,padding=0,stride=2)
+        self.mean_pool = nn.AvgPool2d(kernel_size=2,padding=0 ,stride=2)
+        self.upHW=nn.Upsample(scale_factor=2, mode='bilinear', align_corners=True)
         self.act=nn.Sigmoid()
     def forward(self, tensor1, tensor2):
         # Concatenate 2 tensors along the channel dimension
         concat_tensor = tensor1.permute(0, 3, 1, 2)+tensor2.permute(0, 3, 1, 2) #([1, 768, 64, 64])
         skip_connect=concat_tensor
-        #concat_tensor = self.downchannel(concat_tensor)
+        concat_tensor = self.downchannel(concat_tensor)
 
         # Max and Mean pooling operations on concat_tensor
 
         max_pooled = self.max_pool(concat_tensor) #torch.Size([1, 768, 64, 64])
-        max_pooled=self.downchannel(max_pooled)
         mean_pooled = self.mean_pool(concat_tensor) #torch.Size([1, 768, 64, 64])
-        mean_pooled=self.downchannel(mean_pooled)
         # Concatenate the pooled tensors along the channel dimension
         pooled_concat = torch.cat((max_pooled, mean_pooled), dim=1)
         conv_out=self.conv(pooled_concat)
+        conv_out=self.upHW(conv_out)
         # Convolutional layer
         conv_out = self.upchannel(conv_out) + skip_connect #torch.Size([1, 768, 64, 64])
         return conv_out.permute(0,2,3,1)
