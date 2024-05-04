@@ -195,7 +195,6 @@ class Block(nn.Module):
         self.cross_branch_adapter=CrossBranchAdapter()
         self.conv=nn.Sequential(
             nn.Conv2d(768,768,3,1,1),
-            LayerNorm2d(768),
             nn.GELU()
         )
 
