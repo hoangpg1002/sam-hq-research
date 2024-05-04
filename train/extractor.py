@@ -1,6 +1,13 @@
-from segment_anything_training.modeling.common import LayerNorm2d
-import torch.nn as nn
 import torch
+import torch.nn as nn
+from segment_anything_training.modeling.common import LayerNorm2d
+import torch
+import torch.nn as nn
+import torch.nn.functional as F
+
+import torch
+import torch.nn as nn
+
 class DoubleConv(nn.Module):
     """(convolution => [BN] => ReLU) * 2"""
 
@@ -34,11 +41,11 @@ class Down(nn.Module):
 class UNet(nn.Module):
     def __init__(self):
         super(UNet, self).__init__()
-        self.inc = DoubleConv(3, 32)
-        self.down1 = Down(32, 64)
-        self.down2 = Down(64,128)
+        self.inc = DoubleConv(3, 64)
+        self.down1 = Down(64, 128)
+        self.down2 = Down(128,256)
         self.up = nn.Upsample(scale_factor=2, mode='bilinear', align_corners=True)
-        self.upChannel=nn.Conv2d(128,768,kernel_size=1,stride=1)
+        self.upChannel=nn.Conv2d(256,768,kernel_size=1,stride=1)
 
     def forward(self, x):
         x1 = self.inc(x)

@@ -47,33 +47,6 @@ class mobilenetv3Large(nn.Module):
         output=self.model(x)
         return output.permute(0,2,3,1)
     
-class CrossBranchAdapter(nn.Module):
-    def __init__(self):
-        super(CrossBranchAdapter, self).__init__()
-        self.conv = nn.Conv2d(in_channels=128,out_channels=64,kernel_size=3, padding=1, stride=1)
-        self.upchannel=nn.Conv2d(in_channels=64,out_channels=768,kernel_size=1,stride=1)
-        self.downchannel=nn.Conv2d(in_channels=768,out_channels=64,kernel_size=1,stride=1)
-        self.max_pool = nn.MaxPool2d(kernel_size=3, stride=1,padding=1)
-        self.mean_pool = nn.AvgPool2d(kernel_size=3, stride=1,padding=1)
-        self.act=nn.Sigmoid()
-    def forward(self, tensor1, tensor2):
-        # Concatenate 2 tensors along the channel dimension
-        concat_tensor = tensor1.permute(0, 3, 1, 2)+tensor2.permute(0, 3, 1, 2) #([1, 768, 64, 64])
-        skip_connect=concat_tensor
-        concat_tensor = self.downchannel(concat_tensor)
-
-        # Max and Mean pooling operations on concat_tensor
-
-        max_pooled = self.max_pool(concat_tensor) #torch.Size([1, 768, 64, 64])
-        mean_pooled = self.mean_pool(concat_tensor) #torch.Size([1, 768, 64, 64])
-        # Concatenate the pooled tensors along the channel dimension
-        pooled_concat = torch.cat((max_pooled, mean_pooled), dim=1)
-        #pooled_concat = self.downchannel(pooled_concat)
-        conv_out=self.conv(pooled_concat)
-        conv_out=self.upchannel(conv_out)
-        # Convolutional layer
-        conv_out = self.act(conv_out) + skip_connect #torch.Size([1, 768, 64, 64])
-        return conv_out.permute(0,2,3,1)
 # This class and its supporting functions below lightly adapted from the ViTDet backbone available at: https://github.com/facebookresearch/detectron2/blob/main/detectron2/modeling/backbone/vit.py # noqa
 class DualImageEncoderViT(ImageEncoderViT):
     def __init__(self,model_type):
