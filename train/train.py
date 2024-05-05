@@ -137,7 +137,7 @@ class DualImageEncoderViT(ImageEncoderViT):
     def generalized_image_grad(self,x):
         im_arr = x.squeeze(0).cpu().numpy().transpose((1, 2, 0)).astype(np.uint8)
         canny = cv2.Canny(im_arr, 10, 100)
-        canny = torch.from_numpy(canny).to("cuda").float() /255.0
+        canny = torch.from_numpy(canny).to("cuda").float()
         image_grad=torch.stack([canny] * 3, dim=0)
         return image_grad
 

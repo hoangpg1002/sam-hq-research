@@ -36,7 +36,7 @@ class CrossBranchAdapter(nn.Module):
         pooled_concat=torch.cat([max_pooled,mean_pool],dim=1)
         conv_out=self.conv(pooled_concat)
         # Convolutional layer
-        conv_out = (self.upchannel(conv_out) *shortcut) + shortcut #torch.Size([1, 768, 64, 64])
+        conv_out = self.upchannel(conv_out) + shortcut #torch.Size([1, 768, 64, 64])
         return conv_out.permute(0,2,3,1)
 # This class and its supporting functions below lightly adapted from the ViTDet backbone available at: https://github.com/facebookresearch/detectron2/blob/main/detectron2/modeling/backbone/vit.py # noqa
 class ImageEncoderViT(nn.Module):
@@ -216,8 +216,7 @@ class Block(nn.Module):
             x = window_unpartition(x, self.window_size, pad_hw, (H, W))
 
         x = shortcut + x
-        feature2=self.conv(add_features.permute(0,3,1,2))
-        feature2=feature2.permute(0,2,3,1)
+        feature2=self.conv(add_features.permute(0,3,1,2)).permute(0,2,3,1)
         x= self.cross_branch_adapter(x,feature2)
         x = x + self.mlp(self.norm2(x)) 
 
