@@ -802,7 +802,7 @@ if __name__ == "__main__":
 
     dataset_thin = {"name": "ThinObject5k-TR",
                  "im_dir": "/kaggle/input/hq44kseg/thin_object_detection/ThinObject5K/images_train",
-                 "gt_dir": "/kaggle/input/hq44kseg/thin_object_detection/ThinObject5K/images_test",
+                 "gt_dir": "/kaggle/input/thinobject5k/thin_object_detection/ThinObject5K/masks_train",
                  "im_ext": ".jpg",
                  "gt_ext": ".png"}
 
