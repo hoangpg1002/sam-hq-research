@@ -14,14 +14,14 @@ from .common import LayerNorm2d, MLPBlock
 class CrossBranchAdapter(nn.Module):
     def __init__(self):
         super(CrossBranchAdapter, self).__init__()
-        self.conv = nn.Conv2d(in_channels=256,out_channels=256,kernel_size=7, padding=3, stride=1,groups=256)
-        self.upchannel=nn.Conv2d(in_channels=256,out_channels=768,kernel_size=1,stride=1)
-        self.downchannel=nn.Conv2d(in_channels=768,out_channels=128,kernel_size=1,stride=1)
+        self.conv = nn.Sequential(nn.Conv2d(in_channels=512,out_channels=512,kernel_size=7, padding=3, stride=1,groups=512),nn.Sigmoid(),nn.Dropout(0.1))
+        self.upchannel=nn.Conv2d(in_channels=512,out_channels=768,kernel_size=1,stride=1)
+        self.downchannel=nn.Conv2d(in_channels=768,out_channels=256,kernel_size=1,stride=1)
         self.max_pool = nn.MaxPool2d(kernel_size=2,padding=0,stride=2)
         self.mean_pool = nn.AvgPool2d(kernel_size=2,padding=0,stride=2)
         self.HW=nn.Upsample(scale_factor=2, mode='bilinear', align_corners=True)
-        self.h1 = nn.Linear(4096, 64)
-        self.h2 = nn.Linear(64, 4096)
+        # self.h1 = nn.Linear(4096, 64)
+        # self.h2 = nn.Linear(64, 4096)
     def forward(self, tensor1, tensor2):
         # Concatenate 2 tensors along the channel dimension
         concat_tensor = tensor1.permute(0, 3, 1, 2) + tensor2.permute(0, 3, 1, 2) #([1, 768, 64, 64])
@@ -40,12 +40,12 @@ class CrossBranchAdapter(nn.Module):
         # Convolutional layer
         conv_out = self.upchannel(conv_out) * shortcut + shortcut #torch.Size([1, 768, 64, 64])
         #print(conv_out.shape) #torch.Size([1, 768, 64, 64])
-        batch_size, num_channels,height,width = conv_out.size()
-        conv_out = conv_out.contiguous().view(batch_size,num_channels, height * width)
-        conv_out = self.h1(conv_out)
-        conv_out = F.gelu(conv_out)
-        conv_out = self.h2(conv_out)
-        conv_out = conv_out.view(batch_size, num_channels ,height, width)
+        # batch_size, num_channels,height,width = conv_out.size()
+        # conv_out = conv_out.contiguous().view(batch_size,num_channels, height * width)
+        # conv_out = self.h1(conv_out)
+        # conv_out = F.gelu(conv_out)
+        # conv_out = self.h2(conv_out)
+        # conv_out = conv_out.view(batch_size, num_channels ,height, width)
         return conv_out.permute(0,2,3,1)
 # This class and its supporting functions below lightly adapted from the ViTDet backbone available at: https://github.com/facebookresearch/detectron2/blob/main/detectron2/modeling/backbone/vit.py # noqa
 class ImageEncoderViT(nn.Module):
