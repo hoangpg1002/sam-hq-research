@@ -39,13 +39,12 @@ class CrossBranchAdapter(nn.Module):
         conv_out=self.conv(pooled_concat)
         # Convolutional layer
         conv_out = self.upchannel(conv_out) * shortcut + shortcut #torch.Size([1, 768, 64, 64])
-        print(conv_out.shape) #torch.Size([1, 768, 64, 64])
+        #print(conv_out.shape) #torch.Size([1, 768, 64, 64])
         batch_size, num_channels,height,width = conv_out.size()
         conv_out = conv_out.contiguous().view(batch_size,num_channels, height * width)
         conv_out = self.h1(conv_out)
         conv_out = F.gelu(conv_out)
         conv_out = self.h2(conv_out)
-        print(conv_out.shape)
         conv_out = conv_out.view(batch_size, num_channels ,height, width)
         return conv_out.permute(0,2,3,1)
 # This class and its supporting functions below lightly adapted from the ViTDet backbone available at: https://github.com/facebookresearch/detectron2/blob/main/detectron2/modeling/backbone/vit.py # noqa
