@@ -14,8 +14,7 @@ from .common import LayerNorm2d, MLPBlock
 class CrossBranchAdapter(nn.Module):
     def __init__(self):
         super(CrossBranchAdapter, self).__init__()
-        self.conv = nn.Sequential(nn.Conv2d(in_channels=256,out_channels=256,kernel_size=7, padding=3, stride=1,groups=256),
-                                  nn.Sigmoid())
+        self.conv = nn.Conv2d(in_channels=256,out_channels=256,kernel_size=7, padding=3, stride=1,groups=256)
         self.upchannel=nn.Conv2d(in_channels=256,out_channels=768,kernel_size=1,stride=1)
         self.downchannel=nn.Conv2d(in_channels=768,out_channels=128,kernel_size=1,stride=1)
         self.max_pool = nn.MaxPool2d(kernel_size=2,padding=0,stride=2)
@@ -33,10 +32,11 @@ class CrossBranchAdapter(nn.Module):
 
         max_pooled = self.max_pool(concat_tensor) #torch.Size([1, 768, 64, 64])
         mean_pool = self.mean_pool(concat_tensor)
-        max_pooled=self.HW(max_pooled)
-        mean_pool=self.HW(mean_pool)
+        #max_pooled=self.HW(max_pooled)
+        #mean_pool=self.HW(mean_pool)
         pooled_concat=torch.cat([max_pooled,mean_pool],dim=1)
         conv_out=self.conv(pooled_concat)
+        conv_out=self.HW(conv_out)
         # Convolutional layer
         conv_out = self.upchannel(conv_out) * shortcut + shortcut #torch.Size([1, 768, 64, 64])
         #print(conv_out.shape) #torch.Size([1, 768, 64, 64])
@@ -202,13 +202,6 @@ class Block(nn.Module):
 
         self.window_size = window_size
         self.cross_branch_adapter=CrossBranchAdapter()
-        self.conv=nn.Sequential(
-            nn.Conv2d(768,64,1,1),
-            nn.Conv2d(64,64,3,1,1),
-            LayerNorm2d(64),
-            nn.GELU(),
-            nn.Conv2d(64,768,1,1)
-        )
 
     def forward(self, x: torch.Tensor,add_features: torch.Tensor) -> torch.Tensor:
         shortcut = x
@@ -225,8 +218,6 @@ class Block(nn.Module):
             x = window_unpartition(x, self.window_size, pad_hw, (H, W))
 
         x = shortcut + x
-        feature2=self.conv(add_features.permute(0,3,1,2)).permute(0,2,3,1)
-        x= self.cross_branch_adapter(x,feature2)
         x = x + self.mlp(self.norm2(x)) 
 
         return x
