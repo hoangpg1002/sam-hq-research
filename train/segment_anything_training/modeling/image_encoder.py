@@ -224,8 +224,8 @@ class Block(nn.Module):
 
         x = shortcut + x
         feature2=self.convBlock(add_features.permute(0,3,1,2))
-        
-        x = x + self.mlp(x) +feature2.permute(0,2,3,1)
+        feature2=self.cross_branch_adapter(self.norm(x),feature2)
+        x = x + self.mlp(self.norm2(x)) + feature2.permute(0,2,3,1)
 
         return x
 
