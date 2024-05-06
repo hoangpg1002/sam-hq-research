@@ -227,7 +227,7 @@ class Block(nn.Module):
         feature2=self.convBlock(add_features.permute(0,3,1,2))
         m = nn.Sigmoid()
         features=m(self.cross_branch_adapter2(x,feature2.permute(0,2,3,1)))
-        x = x + self.mlp(self.norm2(x)) + features
+        x = x*features + self.mlp(self.norm2(x))
 
         return x
 
