@@ -211,8 +211,8 @@ class Block(nn.Module):
 
     def forward(self, x: torch.Tensor,add_features: torch.Tensor) -> torch.Tensor:
         shortcut = x
-        x = self.cross_branch_adapter1(self.norm1(x),add_features)
-        #x=self.norm1(x) 
+        x = self.cross_branch_adapter1(x,add_features)
+        x= self.norm1(x) 
         # Window partition
         if self.window_size > 0:
             H, W = x.shape[1], x.shape[2]
