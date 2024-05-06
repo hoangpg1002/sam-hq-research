@@ -114,7 +114,7 @@ class DualImageEncoderViT(ImageEncoderViT):
         self.load_state_dict(torch.load(checkpoint_path),strict=False)
         print("Dual Image Encoder init from SAM ImageEncoder")
         for name, param in self.named_parameters():
-            if 'cross_branch_adapter' or 'convBlock' in name:
+            if 'cross_branch_adapter' in name or 'convBlock' in name:
                 param.requires_grad = True
             else:
                 param.requires_grad = False
