@@ -14,7 +14,7 @@ from .common import LayerNorm2d, MLPBlock
 class CrossBranchAdapter(nn.Module):
     def __init__(self):
         super(CrossBranchAdapter, self).__init__()
-        self.conv = nn.Sequential(nn.Conv2d(in_channels=768,out_channels=768,kernel_size=7, padding=3, stride=1,groups=768),nn.Sigmoid(),nn.Dropout(0.1))
+        self.conv = nn.Sequential(nn.Conv2d(in_channels=768,out_channels=768,kernel_size=7, padding=3, stride=1,groups=768),LayerNorm2d(768),nn.GELU(),nn.Dropout(0.2))
         #self.upchannel=nn.Conv2d(in_channels=512,out_channels=768,kernel_size=1,stride=1)
         self.downchannel=nn.Conv2d(in_channels=768,out_channels=384,kernel_size=1,stride=1)
         self.max_pool = nn.MaxPool2d(kernel_size=2,padding=0,stride=2)
@@ -201,17 +201,11 @@ class Block(nn.Module):
         self.mlp = MLPBlock(embedding_dim=dim, mlp_dim=int(dim * mlp_ratio), act=act_layer)
 
         self.window_size = window_size
-        self.cross_branch_adapter1=CrossBranchAdapter()
-        self.cross_branch_adapter2=CrossBranchAdapter()
-        self.convBlock=nn.Sequential(
-            nn.Conv2d(in_channels=768,out_channels=768,kernel_size=3,padding=1,stride=1,groups=768),
-            LayerNorm2d(768),
-            nn.GELU()
-        )
+        self.cross_branch_adapter=CrossBranchAdapter()
 
     def forward(self, x: torch.Tensor,add_features: torch.Tensor) -> torch.Tensor:
         shortcut = x
-        x = self.cross_branch_adapter1(x,add_features)
+        x = self.cross_branch_adapter(x,add_features)
         x= self.norm1(x) 
         # Window partition
         if self.window_size > 0:
@@ -224,10 +218,7 @@ class Block(nn.Module):
             x = window_unpartition(x, self.window_size, pad_hw, (H, W))
 
         x = shortcut + x
-        feature2=self.convBlock(add_features.permute(0,3,1,2))
-        m = nn.Sigmoid()
-        features=m(self.cross_branch_adapter2(x,feature2.permute(0,2,3,1)))
-        x = x*features + self.mlp(self.norm2(x))
+        x = x + self.mlp(self.norm2(x))
 
         return x
 
