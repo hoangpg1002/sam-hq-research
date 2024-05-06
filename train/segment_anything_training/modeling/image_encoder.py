@@ -223,9 +223,9 @@ class Block(nn.Module):
             x = window_unpartition(x, self.window_size, pad_hw, (H, W))
 
         x = shortcut + x
-        feature2=self.convBlock(self.norm2(x).permute(0,2,3,1),add_features)
+        feature2=self.convBlock(add_features.permute(0,3,1,2))
         
-        x = x + self.mlp(x) +feature2.permute(0,3,1,2)
+        x = x + self.mlp(x) +feature2.permute(0,2,3,1)
 
         return x
 
