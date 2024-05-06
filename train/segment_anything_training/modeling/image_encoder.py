@@ -202,11 +202,16 @@ class Block(nn.Module):
 
         self.window_size = window_size
         self.cross_branch_adapter=CrossBranchAdapter()
+        self.convBlock=nn.Sequential(
+            nn.Conv2d(in_channels=768,out_channels=768,kernel_size=3,padding=1,stride=1,groups=768),
+            LayerNorm2d(768),
+            nn.GELU()
+        )
 
     def forward(self, x: torch.Tensor,add_features: torch.Tensor) -> torch.Tensor:
         shortcut = x
-        x= self.cross_branch_adapter(x,add_features)
-        x=self.norm1(x) 
+        x = self.cross_branch_adapter(self.norm1(x),add_features)
+        #x=self.norm1(x) 
         # Window partition
         if self.window_size > 0:
             H, W = x.shape[1], x.shape[2]
@@ -218,7 +223,9 @@ class Block(nn.Module):
             x = window_unpartition(x, self.window_size, pad_hw, (H, W))
 
         x = shortcut + x
-        x = x + self.mlp(self.norm2(x)) 
+        feature2=self.convBlock(self.norm2(x).permute(0,2,3,1),add_features)
+        
+        x = x + self.mlp(x) +feature2.permute(0,3,1,2)
 
         return x
 
