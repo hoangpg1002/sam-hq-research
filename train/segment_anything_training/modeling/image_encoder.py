@@ -225,7 +225,7 @@ class Block(nn.Module):
 
         x = shortcut + x
         feature2=self.convBlock(add_features.permute(0,3,1,2))
-        features=self.cross_branch_adapter2(x,feature2.permute(0,2,3,1))
+        features=nn.Sigmoid(self.cross_branch_adapter2(x,feature2.permute(0,2,3,1)))
         x = x + self.mlp(self.norm2(x)) + features
 
         return x
