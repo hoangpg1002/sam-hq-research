@@ -43,7 +43,7 @@ class CrossBranchAdapter(nn.Module):
         batch_size, num_channels,height,width = conv_out.size()
         conv_out = conv_out.contiguous().view(batch_size,num_channels, height * width)
         conv_out = self.h1(conv_out)
-        conv_out = F.gelu(conv_out)
+        conv_out = nn.GELU(conv_out)
         conv_out = self.h2(conv_out)
         conv_out = conv_out.view(batch_size, num_channels ,height, width)
         return conv_out.permute(0,2,3,1)
