@@ -40,7 +40,7 @@ class CrossBranchAdapter(nn.Module):
         conv_out = conv_out * shortcut + shortcut #torch.Size([1, 768, 64, 64])
         #print(conv_out.shape) #torch.Size([1, 768, 64, 64])
         #conv_out=self.mlp(conv_out.permute(0,2,3,1)) 
-        return conv_out 
+        return conv_out.permute(0,2,3,1) 
 # This class and its supporting functions below lightly adapted from the ViTDet backbone available at: https://github.com/facebookresearch/detectron2/blob/main/detectron2/modeling/backbone/vit.py # noqa
 class ImageEncoderViT(nn.Module):
     def __init__(
