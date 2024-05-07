@@ -65,7 +65,37 @@ class CNNextractor(nn.Module):
         feature=self.model.extract_features(x)
         feature=self.conv(feature)
         return feature.permute(0,2,3,1)
-    
+class CrossBranchAdapter(nn.Module):
+    def __init__(self):
+        super(CrossBranchAdapter, self).__init__()
+        self.conv = nn.Sequential(nn.Conv2d(in_channels=1536,out_channels=1536,kernel_size=7, padding=3, stride=1,groups=1536),nn.Sigmoid(),nn.Dropout(0.1))
+        #self.upchannel=nn.Conv2d(in_channels=512,out_channels=768,kernel_size=1,stride=1)
+        self.downchannel=nn.Conv2d(in_channels=1536,out_channels=768,kernel_size=1,stride=1)
+        self.max_pool = nn.MaxPool2d(kernel_size=2,padding=0,stride=2)
+        self.mean_pool = nn.AvgPool2d(kernel_size=2,padding=0,stride=2)
+        self.HW=nn.Upsample(scale_factor=2, mode='bilinear', align_corners=True)
+        #self.mlp = MLPBlock(embedding_dim=768, mlp_dim=int(768 * 2), act=nn.GELU)
+    def forward(self, tensor1, tensor2):
+        # Concatenate 2 tensors along the channel dimension
+        concat_tensor = tensor1.permute(0, 3, 1, 2) + tensor2.permute(0, 3, 1, 2) #([1, 768, 64, 64])
+        shortcut=concat_tensor
+        #concat_tensor = self.downchannel(concat_tensor)
+
+        # Max and Mean pooling operations on concat_tensor
+
+        max_pooled = self.max_pool(concat_tensor) #torch.Size([1, 768, 64, 64])
+        mean_pool = self.mean_pool(concat_tensor)
+        #max_pooled=self.HW(max_pooled)
+        #mean_pool=self.HW(mean_pool)
+        pooled_concat=torch.cat([max_pooled,mean_pool],dim=1)
+        conv_out=self.conv(pooled_concat)
+        conv_out=self.HW(conv_out)
+        conv_out=self.downchannel(conv_out)
+        # Convolutional layer
+        conv_out = conv_out * shortcut + shortcut #torch.Size([1, 768, 64, 64])
+        #print(conv_out.shape) #torch.Size([1, 768, 64, 64])
+        #conv_out=self.mlp(conv_out.permute(0,2,3,1)) 
+        return conv_out.permute(0,2,3,1) 
 # This class and its supporting functions below lightly adapted from the ViTDet backbone available at: https://github.com/facebookresearch/detectron2/blob/main/detectron2/modeling/backbone/vit.py # noqa
 class DualImageEncoderViT(ImageEncoderViT):
     def __init__(self,model_type):
@@ -119,6 +149,7 @@ class DualImageEncoderViT(ImageEncoderViT):
             else:
                 param.requires_grad = False
         self.feature_extractor=CNNextractor()
+        self.cross_branch_adapter=CrossBranchAdapter()
     def forward(self, x: torch.Tensor) -> torch.Tensor:
             #image_with_grad=self.generalized_image_grad(x) + x
             image_with_grad=x
@@ -135,6 +166,7 @@ class DualImageEncoderViT(ImageEncoderViT):
 
             x = self.neck(x.permute(0, 3, 1, 2))
             x_cnn=self.neck(add_features.permute(0, 3, 1, 2))
+            x=self.cross_branch_adapter(x,x_cnn)
             return x+x_cnn, interm_embeddings
     def generalized_image_grad(self,x):
         im_arr = x.squeeze(0).cpu().numpy().transpose((1, 2, 0)).astype(np.uint8)
