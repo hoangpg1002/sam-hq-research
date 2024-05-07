@@ -20,8 +20,7 @@ class CrossBranchAdapter(nn.Module):
         self.max_pool = nn.MaxPool2d(kernel_size=2,padding=0,stride=2)
         self.mean_pool = nn.AvgPool2d(kernel_size=2,padding=0,stride=2)
         self.HW=nn.Upsample(scale_factor=2, mode='bilinear', align_corners=True)
-        self.h1 = nn.Linear(4096, 512)
-        self.h2 = nn.Linear(512, 4096)
+        self.mlp = MLPBlock(embedding_dim=768, mlp_dim=int(768 * 4), act=nn.GELU)
     def forward(self, tensor1, tensor2):
         # Concatenate 2 tensors along the channel dimension
         concat_tensor = tensor1.permute(0, 3, 1, 2) + tensor2.permute(0, 3, 1, 2) #([1, 768, 64, 64])
@@ -40,12 +39,7 @@ class CrossBranchAdapter(nn.Module):
         # Convolutional layer
         conv_out = conv_out * shortcut + shortcut #torch.Size([1, 768, 64, 64])
         #print(conv_out.shape) #torch.Size([1, 768, 64, 64])
-        batch_size, num_channels,height,width = conv_out.size()
-        conv_out = conv_out.contiguous().view(batch_size,num_channels, height * width)
-        conv_out = self.h1(conv_out)
-        conv_out = F.gelu(conv_out)
-        conv_out = self.h2(conv_out)
-        conv_out = conv_out.view(batch_size, num_channels ,height, width)
+        conv_out=self.mlp(conv_out.permute(0,2,3,1))
         return conv_out.permute(0,2,3,1)
 # This class and its supporting functions below lightly adapted from the ViTDet backbone available at: https://github.com/facebookresearch/detectron2/blob/main/detectron2/modeling/backbone/vit.py # noqa
 class ImageEncoderViT(nn.Module):
@@ -202,6 +196,7 @@ class Block(nn.Module):
 
         self.window_size = window_size
         self.cross_branch_adapter=CrossBranchAdapter()
+        
 
     def forward(self, x: torch.Tensor,add_features: torch.Tensor) -> torch.Tensor:
         shortcut = x
