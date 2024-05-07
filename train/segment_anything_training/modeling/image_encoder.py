@@ -14,7 +14,7 @@ from .common import LayerNorm2d, MLPBlock
 class CrossBranchAdapter(nn.Module):
     def __init__(self):
         super(CrossBranchAdapter, self).__init__()
-        self.conv = nn.Sequential(nn.Conv2d(in_channels=768,out_channels=768,kernel_size=7, padding=3, stride=1,bias=False,groups=768),nn.Sigmoid(),nn.Dropout(0.2))
+        self.conv = nn.Sequential(nn.Conv2d(in_channels=768,out_channels=768,kernel_size=7, padding=3, stride=1,groups=768),nn.Sigmoid(),nn.Dropout(0.1))
         #self.upchannel=nn.Conv2d(in_channels=512,out_channels=768,kernel_size=1,stride=1)
         self.downchannel=nn.Conv2d(in_channels=768,out_channels=384,kernel_size=1,stride=1)
         self.max_pool = nn.MaxPool2d(kernel_size=2,padding=0,stride=2)
@@ -37,7 +37,7 @@ class CrossBranchAdapter(nn.Module):
         conv_out=self.conv(pooled_concat)
         conv_out=self.HW(conv_out)
         # Convolutional layer
-        conv_out = conv_out * shortcut + shortcut #torch.Size([1, 768, 64, 64])
+        conv_out = conv_out * shortcut #torch.Size([1, 768, 64, 64])
         #print(conv_out.shape) #torch.Size([1, 768, 64, 64])
         conv_out=self.mlp(conv_out.permute(0,2,3,1)) 
         return conv_out + shortcut.permute(0,2,3,1)

@@ -467,7 +467,7 @@ def main(net,encoder,train_datasets, valid_datasets):
  
     ### --- Step 3: Train or Evaluate ---
     print("--- define optimizer ---")
-    optimizer = optim.Adam(net.parameters(), lr=0.001, betas=(0.9, 0.999), eps=1e-08, weight_decay=0)
+    optimizer = optim.AdamW(net.parameters(), lr=0.001, betas=(0.9, 0.999), eps=1e-08, weight_decay=0)
     lr_scheduler = torch.optim.lr_scheduler.StepLR(optimizer, 10)
     lr_scheduler.last_epoch = 0
     train(net, encoder,optimizer, train_dataloaders, valid_dataloaders, lr_scheduler)
@@ -504,7 +504,7 @@ def train(net,encoder,optimizer, train_dataloaders, valid_dataloaders, lr_schedu
         metric_logger = misc.MetricLogger(delimiter="  ")
         # train_dataloaders.batch_sampler.sampler.set_epoch(epoch)
 
-        for data in metric_logger.log_every(train_dataloaders,100):
+        for data in metric_logger.log_every(train_dataloaders,200):
             inputs, labels = data['image'], data['label']
             if torch.cuda.is_available():
                 inputs = inputs.to(device="cuda")
