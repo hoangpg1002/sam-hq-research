@@ -120,7 +120,8 @@ class DualImageEncoderViT(ImageEncoderViT):
                 param.requires_grad = False
         self.feature_extractor=CNNextractor()
     def forward(self, x: torch.Tensor) -> torch.Tensor:
-            image_with_grad=self.generalized_image_grad(x) + x
+            #image_with_grad=self.generalized_image_grad(x) + x
+            image_with_grad=x
             add_features=self.feature_extractor(image_with_grad)
             x = self.patch_embed(x) #(1,64,64,768)
             if self.pos_embed is not None:
@@ -133,7 +134,8 @@ class DualImageEncoderViT(ImageEncoderViT):
                     interm_embeddings.append(x)
 
             x = self.neck(x.permute(0, 3, 1, 2))
-            return x, interm_embeddings
+            x_cnn=self.neck(add_features.permute(0, 3, 1, 2))
+            return x+x_cnn, interm_embeddings
     def generalized_image_grad(self,x):
         im_arr = x.squeeze(0).cpu().numpy().transpose((1, 2, 0)).astype(np.uint8)
         canny = cv2.Canny(im_arr, 10, 100)
