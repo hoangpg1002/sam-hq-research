@@ -163,11 +163,10 @@ class DualImageEncoderViT(ImageEncoderViT):
                 x = blk(x,add_features)
                 if blk.window_size == 0:
                     interm_embeddings.append(x)
-
+            x=self.cross_branch_adapter(x,add_features)
             x = self.neck(x.permute(0, 3, 1, 2))
-            x_cnn=self.neck(add_features.permute(0, 3, 1, 2))
-            x=self.cross_branch_adapter(x,x_cnn)
-            return x+x_cnn, interm_embeddings
+            
+            return x, interm_embeddings
     def generalized_image_grad(self,x):
         im_arr = x.squeeze(0).cpu().numpy().transpose((1, 2, 0)).astype(np.uint8)
         canny = cv2.Canny(im_arr, 10, 100)
