@@ -162,6 +162,7 @@ class DualImageEncoderViT(ImageEncoderViT):
                 x = blk(x,add_features)
                 if blk.window_size == 0:
                     interm_embeddings.append(x)
+            interm_embeddings.append(add_features)
             x=self.cross_branch_adapter(x,add_features)
             x = self.neck(x.permute(0, 3, 1, 2))
             
@@ -251,6 +252,11 @@ class MaskDecoderHQ(MaskDecoder):
                                             LayerNorm2d(transformer_dim),
                                             nn.GELU(), 
                                             nn.ConvTranspose2d(transformer_dim, transformer_dim // 8, kernel_size=2, stride=2))
+        self.compress_vit_feat_cnn = nn.Sequential(
+                                            nn.ConvTranspose2d(vit_dim, transformer_dim, kernel_size=2, stride=2),
+                                            LayerNorm2d(transformer_dim),
+                                            nn.GELU(), 
+                                            nn.ConvTranspose2d(transformer_dim, transformer_dim // 8, kernel_size=2, stride=2))
             
         self.embedding_encoder = nn.Sequential(
                                         nn.ConvTranspose2d(transformer_dim, transformer_dim // 4, kernel_size=2, stride=2),
@@ -290,8 +296,9 @@ class MaskDecoderHQ(MaskDecoder):
           torch.Tensor: batched predicted hq masks
         """
 
-        vit_features = interm_embeddings[0].permute(0, 3, 1, 2)
-        hq_features=self.embedding_encoder(image_embeddings)+self.compress_vit_feat(vit_features)
+        vit_features = interm_embeddings[0].permute(0, 3, 1, 2) #interm_embeddings[0] =(1,64,64,768) => (1,768,64,64)
+        cnn_features= interm_embeddings[-1].permute(0,3,1,2)
+        hq_features=self.embedding_encoder(image_embeddings)+self.compress_vit_feat(vit_features)+self.embedding_encoder(cnn_features)
         batch_len = len(image_embeddings)
         masks = []
         iou_preds = []
