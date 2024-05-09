@@ -543,7 +543,7 @@ def train(net,encoder,optimizer, train_dataloaders, valid_dataloaders, lr_schedu
         metric_logger = misc.MetricLogger(delimiter="  ")
         # train_dataloaders.batch_sampler.sampler.set_epoch(epoch)
 
-        for data in metric_logger.log_every(train_dataloaders,200):
+        for data in metric_logger.log_every(train_dataloaders,500):
             inputs, labels = data['image'], data['label']
             if torch.cuda.is_available():
                 inputs = inputs.to(device="cuda")
@@ -727,7 +727,7 @@ def evaluate(net,encoder, sam, valid_dataloaders):
         valid_dataloader = valid_dataloaders[k]
         print('valid_dataloader len:', len(valid_dataloader))
 
-        for data_val in metric_logger.log_every(valid_dataloader,50):
+        for data_val in metric_logger.log_every(valid_dataloader,1000):
             imidx_val, inputs_val, labels_val, shapes_val, labels_ori = data_val['imidx'], data_val['image'], data_val['label'], data_val['shape'], data_val['ori_label']
 
             if torch.cuda.is_available():
