@@ -54,12 +54,12 @@ seed_everything(42)
 class CNNextractor(nn.Module):
     def __init__(self):
         super(CNNextractor, self).__init__()
-        self.model= EfficientNet.from_pretrained('efficientnet-b2')
+        self.model= EfficientNet.from_pretrained('efficientnet-b5')
         for n,p in self.model.named_parameters():
             p.requires_grad=False
         self.conv=nn.Sequential(
                 nn.Upsample(scale_factor=2, mode='bilinear', align_corners=True),
-                nn.Conv2d(1408,768,kernel_size=1,stride=1)
+                nn.Conv2d(2048,768,kernel_size=1,stride=1)
             )
     def forward(self, x):
         feature=self.model.extract_features(x)
