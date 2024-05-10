@@ -54,48 +54,89 @@ seed_everything(42)
 class CNNextractor(nn.Module):
     def __init__(self):
         super(CNNextractor, self).__init__()
-        self.model= EfficientNet.from_pretrained('efficientnet-b5')
+        self.model= EfficientNet.from_pretrained('efficientnet-b0')
         for n,p in self.model.named_parameters():
             p.requires_grad=False
         self.conv=nn.Sequential(
                 nn.Upsample(scale_factor=2, mode='bilinear', align_corners=True),
-                nn.Conv2d(2048,768,kernel_size=1,stride=1)
+                nn.Conv2d(in_channels=1280,out_channels=256,kernel_size=3,stride=1,padding=1)
             )
     def forward(self, x):
         feature=self.model.extract_features(x)
         feature=self.conv(feature)
         return feature.permute(0,2,3,1)
+# class CrossBranchAdapter(nn.Module):
+#     def __init__(self):
+#         super(CrossBranchAdapter, self).__init__()
+#         self.conv = nn.Sequential(nn.Conv2d(in_channels=1536,out_channels=1536,kernel_size=7, padding=3, stride=1,groups=1536),nn.Sigmoid(),nn.Dropout(0.1))
+#         #self.upchannel=nn.Conv2d(in_channels=512,out_channels=768,kernel_size=1,stride=1)
+#         self.downchannel=nn.Conv2d(in_channels=1536,out_channels=768,kernel_size=1,stride=1)
+#         self.max_pool = nn.MaxPool2d(kernel_size=2,padding=0,stride=2)
+#         self.mean_pool = nn.AvgPool2d(kernel_size=2,padding=0,stride=2)
+#         self.HW=nn.Upsample(scale_factor=2, mode='bilinear', align_corners=True)
+#         #self.mlp = MLPBlock(embedding_dim=768, mlp_dim=int(768 * 2), act=nn.GELU)
+#     def forward(self, tensor1, tensor2):
+#         # Concatenate 2 tensors along the channel dimension
+#         concat_tensor = tensor1.permute(0, 3, 1, 2) + tensor2.permute(0, 3, 1, 2) #([1, 768, 64, 64])
+#         shortcut=concat_tensor
+#         #concat_tensor = self.downchannel(concat_tensor)
+
+#         # Max and Mean pooling operations on concat_tensor
+
+#         max_pooled = self.max_pool(concat_tensor) #torch.Size([1, 768, 64, 64])
+#         mean_pool = self.mean_pool(concat_tensor)
+#         #max_pooled=self.HW(max_pooled)
+#         #mean_pool=self.HW(mean_pool)
+#         pooled_concat=torch.cat([max_pooled,mean_pool],dim=1)
+#         conv_out=self.conv(pooled_concat)
+#         conv_out=self.HW(conv_out)
+#         conv_out=self.downchannel(conv_out)
+#         # Convolutional layer
+#         conv_out = conv_out * shortcut + shortcut #torch.Size([1, 768, 64, 64])
+#         #print(conv_out.shape) #torch.Size([1, 768, 64, 64])
+#         #conv_out=self.mlp(conv_out.permute(0,2,3,1)) 
+#         return conv_out.permute(0,2,3,1) 
+class MLPBlock(nn.Module):
+    def __init__(
+        self,
+        embedding_dim: int,
+        mlp_dim: int,
+        out_dim:int,
+        act: Type[nn.Module] = nn.GELU,
+    ) -> None:
+        super().__init__()
+        self.lin1 = nn.Linear(embedding_dim, mlp_dim)
+        self.lin2 = nn.Linear(mlp_dim, out_dim)
+        self.act = act()
+
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        return self.lin2(self.act(self.lin1(x)))   
 class CrossBranchAdapter(nn.Module):
     def __init__(self):
         super(CrossBranchAdapter, self).__init__()
-        self.conv = nn.Sequential(nn.Conv2d(in_channels=1536,out_channels=1536,kernel_size=7, padding=3, stride=1,groups=1536),nn.Sigmoid(),nn.Dropout(0.1))
-        #self.upchannel=nn.Conv2d(in_channels=512,out_channels=768,kernel_size=1,stride=1)
-        self.downchannel=nn.Conv2d(in_channels=1536,out_channels=768,kernel_size=1,stride=1)
-        self.max_pool = nn.MaxPool2d(kernel_size=2,padding=0,stride=2)
-        self.mean_pool = nn.AvgPool2d(kernel_size=2,padding=0,stride=2)
-        self.HW=nn.Upsample(scale_factor=2, mode='bilinear', align_corners=True)
-        #self.mlp = MLPBlock(embedding_dim=768, mlp_dim=int(768 * 2), act=nn.GELU)
+        self.mean_pool = nn.AdaptiveAvgPool2d((64,64))
+        self.mlp_block_1=MLPBlock(embedding_dim=512,mlp_dim=1024,out_dim=256,act=nn.GELU)
+        self.sigmoid = nn.Sigmoid()
+        # self.h1 = nn.Linear(4096, 64)
+        # self.h2 = nn.Linear(64, 4096)
     def forward(self, tensor1, tensor2):
         # Concatenate 2 tensors along the channel dimension
-        concat_tensor = tensor1.permute(0, 3, 1, 2) + tensor2.permute(0, 3, 1, 2) #([1, 768, 64, 64])
-        shortcut=concat_tensor
-        #concat_tensor = self.downchannel(concat_tensor)
+        Fc=tensor1
+        Ft=tensor2
+        concat_tensor = torch.cat([tensor1,tensor2],dim=1) #(1,512,64,64)
 
         # Max and Mean pooling operations on concat_tensor
-
-        max_pooled = self.max_pool(concat_tensor) #torch.Size([1, 768, 64, 64])
-        mean_pool = self.mean_pool(concat_tensor)
-        #max_pooled=self.HW(max_pooled)
-        #mean_pool=self.HW(mean_pool)
-        pooled_concat=torch.cat([max_pooled,mean_pool],dim=1)
-        conv_out=self.conv(pooled_concat)
-        conv_out=self.HW(conv_out)
-        conv_out=self.downchannel(conv_out)
-        # Convolutional layer
-        conv_out = conv_out * shortcut + shortcut #torch.Size([1, 768, 64, 64])
-        #print(conv_out.shape) #torch.Size([1, 768, 64, 64])
-        #conv_out=self.mlp(conv_out.permute(0,2,3,1)) 
-        return conv_out.permute(0,2,3,1) 
+        mean_pool = self.mean_pool(concat_tensor) #(1,512,64,64)
+        Wc=self.sigmoid(self.mlp_block_1(mean_pool.permute(0,2,3,1))).permute(0,3,1,2)
+        Wt=self.sigmoid(self.mlp_block_1(mean_pool.permute(0,2,3,1))).permute(0,3,1,2)
+        Filterc=torch.mul(Fc,Wc)
+        Filtert=torch.mul(Ft,Wt)
+        RecC=Filterc+Fc
+        RecT=Filtert+Ft
+        Ac = torch.exp(RecC) / (torch.exp(RecC) + torch.exp(RecT))
+        At = torch.exp(RecT) / (torch.exp(RecT) + torch.exp(RecC))
+        final_feature=Ac*Fc+At*Ft
+        return final_feature
 # This class and its supporting functions below lightly adapted from the ViTDet backbone available at: https://github.com/facebookresearch/detectron2/blob/main/detectron2/modeling/backbone/vit.py # noqa
 class DualImageEncoderViT(ImageEncoderViT):
     def __init__(self,model_type):
@@ -163,9 +204,9 @@ class DualImageEncoderViT(ImageEncoderViT):
                 if blk.window_size == 0:
                     interm_embeddings.append(x)
             interm_embeddings.append(add_features)
-            x=self.cross_branch_adapter(x,add_features)
+            #x=self.cross_branch_adapter(x,add_features)
             x = self.neck(x.permute(0, 3, 1, 2))
-            
+            x = self.cross_branch_adapter(x,add_features.permute(0,2,3,1))
             return x, interm_embeddings
     def generalized_image_grad(self,x):
         im_arr = x.squeeze(0).cpu().numpy().transpose((1, 2, 0)).astype(np.uint8)
