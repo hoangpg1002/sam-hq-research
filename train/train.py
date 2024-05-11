@@ -83,7 +83,7 @@ class MLPBlock(nn.Module):
 class CrossBranchAdapter(nn.Module):
     def __init__(self):
         super(CrossBranchAdapter, self).__init__()
-        self.conv = nn.Sequential(nn.Conv2d(in_channels=1536,out_channels=1536,kernel_size=7, padding=3, stride=1,groups=1536),nn.Sigmoid(),nn.Dropout(0.1))
+        self.conv = nn.Sequential(nn.Conv2d(in_channels=1536,out_channels=1536,kernel_size=3, padding=1, stride=1,groups=1536),nn.Sigmoid(),nn.Dropout(0.1))
         #self.upchannel=nn.Conv2d(in_channels=512,out_channels=768,kernel_size=1,stride=1)
         self.downchannel=nn.Conv2d(in_channels=1536,out_channels=768,kernel_size=1,stride=1)
         self.max_pool = nn.AdaptiveMaxPool2d((64,64))
