@@ -115,7 +115,7 @@ class CrossBranchAdapter(nn.Module):
     def __init__(self):
         super(CrossBranchAdapter, self).__init__()
         self.mean_pool = nn.AdaptiveAvgPool2d((64,64))
-        self.mlp_block_1=MLPBlock(embedding_dim=512,mlp_dim=1024,out_dim=256,act=nn.GELU)
+        self.mlp_block_1=MLPBlock(embedding_dim=512,mlp_dim=512*4,out_dim=256,act=nn.GELU)
         self.sigmoid = nn.Sigmoid()
         # self.h1 = nn.Linear(4096, 64)
         # self.h2 = nn.Linear(64, 4096)
