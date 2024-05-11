@@ -73,6 +73,7 @@ class CrossBranchAdapter(nn.Module):
         self.downchannel=nn.Conv2d(in_channels=1536,out_channels=768,kernel_size=1,stride=1)
         self.max_pool = nn.AdaptiveMaxPool2d((64,64))
         self.mean_pool = nn.AdaptiveAvgPool2d((64,64))
+        self.mlp=MLPBlock(embedding_dim=768,mlp_dim=768*2,out_dim=768,act=nn.GELU)
         #self.mlp = MLPBlock(embedding_dim=768, mlp_dim=int(768 * 2), act=nn.GELU)
     def forward(self, tensor1, tensor2):
         # Concatenate 2 tensors along the channel dimension
@@ -91,9 +92,10 @@ class CrossBranchAdapter(nn.Module):
         conv_out=self.downchannel(conv_out)
         # Convolutional layer
         conv_out = conv_out * shortcut + shortcut #torch.Size([1, 768, 64, 64])
+        conv_out = self.mlp(conv_out.permute(0,2,3,1))
         #print(conv_out.shape) #torch.Size([1, 768, 64, 64])
         #conv_out=self.mlp(conv_out.permute(0,2,3,1)) 
-        return conv_out.permute(0,2,3,1)
+        return conv_out
 # class MLPBlock(nn.Module):
 #     def __init__(
 #         self,
