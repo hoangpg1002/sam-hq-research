@@ -56,7 +56,7 @@ class CNNextractor(nn.Module):
         super(CNNextractor, self).__init__()
         self.model= EfficientNet.from_pretrained('efficientnet-b0')
         for n,p in self.model.named_parameters():
-            p.requires_grad=False
+            p.requires_grad=True
         self.conv=nn.Sequential(
                 nn.Upsample(scale_factor=2, mode='bilinear', align_corners=True),
                 nn.Conv2d(in_channels=1280,out_channels=768,kernel_size=3,stride=1,padding=1)
@@ -71,9 +71,8 @@ class CrossBranchAdapter(nn.Module):
         self.conv = nn.Sequential(nn.Conv2d(in_channels=1536,out_channels=1536,kernel_size=7, padding=3, stride=1,groups=1536),nn.Sigmoid(),nn.Dropout(0.1))
         #self.upchannel=nn.Conv2d(in_channels=512,out_channels=768,kernel_size=1,stride=1)
         self.downchannel=nn.Conv2d(in_channels=1536,out_channels=768,kernel_size=1,stride=1)
-        self.max_pool = nn.MaxPool2d(kernel_size=2,padding=0,stride=2)
-        self.mean_pool = nn.AvgPool2d(kernel_size=2,padding=0,stride=2)
-        self.HW=nn.Upsample(scale_factor=2, mode='bilinear', align_corners=True)
+        self.max_pool = nn.AdaptiveMaxPool2d((64,64))
+        self.mean_pool = nn.AdaptiveAvgPool2d((64,64))
         #self.mlp = MLPBlock(embedding_dim=768, mlp_dim=int(768 * 2), act=nn.GELU)
     def forward(self, tensor1, tensor2):
         # Concatenate 2 tensors along the channel dimension
@@ -89,13 +88,12 @@ class CrossBranchAdapter(nn.Module):
         #mean_pool=self.HW(mean_pool)
         pooled_concat=torch.cat([max_pooled,mean_pool],dim=1)
         conv_out=self.conv(pooled_concat)
-        conv_out=self.HW(conv_out)
         conv_out=self.downchannel(conv_out)
         # Convolutional layer
         conv_out = conv_out * shortcut + shortcut #torch.Size([1, 768, 64, 64])
         #print(conv_out.shape) #torch.Size([1, 768, 64, 64])
         #conv_out=self.mlp(conv_out.permute(0,2,3,1)) 
-        return conv_out.permute(0,2,3,1) 
+        return conv_out.permute(0,2,3,1)
 # class MLPBlock(nn.Module):
 #     def __init__(
 #         self,
