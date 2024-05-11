@@ -331,11 +331,10 @@ class MaskDecoderHQ(MaskDecoder):
                                         nn.ConvTranspose2d(transformer_dim // 4, transformer_dim // 8, kernel_size=2, stride=2),
                                     )
         self.embedding_encoder_cnn = nn.Sequential(
-                                        nn.ConvTranspose2d(transformer_dim, transformer_dim // 4, kernel_size=2, stride=2),
-                                        LayerNorm2d(transformer_dim // 4),
-                                        nn.GELU(),
-                                        nn.ConvTranspose2d(transformer_dim // 4, transformer_dim // 8, kernel_size=2, stride=2),
-                                    )
+                                            nn.ConvTranspose2d(vit_dim, transformer_dim, kernel_size=2, stride=2),
+                                            LayerNorm2d(transformer_dim),
+                                            nn.GELU(), 
+                                            nn.ConvTranspose2d(transformer_dim, transformer_dim // 8, kernel_size=2, stride=2))
 
         self.embedding_maskfeature = nn.Sequential(
                                         nn.Conv2d(transformer_dim // 8, transformer_dim // 4, 3, 1, 1), 
