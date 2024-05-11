@@ -59,7 +59,7 @@ class CNNextractor(nn.Module):
             p.requires_grad=False
         self.conv=nn.Sequential(
                 nn.Upsample(scale_factor=2, mode='bilinear', align_corners=True),
-                nn.Conv2d(in_channels=1280,out_channels=256,kernel_size=3,stride=1,padding=1)
+                nn.Conv2d(in_channels=1280,out_channels=768,kernel_size=3,stride=1,padding=1)
             )
     def forward(self, x):
         feature=self.model.extract_features(x)
