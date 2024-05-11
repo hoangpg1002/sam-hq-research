@@ -56,7 +56,7 @@ class CNNextractor(nn.Module):
         super(CNNextractor, self).__init__()
         self.model= EfficientNet.from_pretrained('efficientnet-b0')
         for n,p in self.model.named_parameters():
-            p.requires_grad=True
+            p.requires_grad=False
         self.conv=nn.Sequential(
                 nn.Upsample(scale_factor=2, mode='bilinear', align_corners=True),
                 nn.Conv2d(in_channels=1280,out_channels=256,kernel_size=3,stride=1,padding=1)
@@ -552,7 +552,7 @@ def main(net,encoder,train_datasets, valid_datasets):
     optimizer = optim.AdamW(net.parameters(), lr=0.001, betas=(0.9, 0.999), eps=1e-08, weight_decay=0)
     lr_scheduler = torch.optim.lr_scheduler.StepLR(optimizer, 10)
     lr_scheduler.last_epoch = 0
-    #train(net, encoder,optimizer, train_dataloaders, valid_dataloaders, lr_scheduler)
+    train(net, encoder,optimizer, train_dataloaders, valid_dataloaders, lr_scheduler)
     sam = sam_model_registry["vit_b"](checkpoint="/kaggle/working/training/pretrained_checkpoint/sam_vit_b_01ec64.pth").to(device="cuda")
     evaluate(net,encoder,sam, valid_dataloaders)
 
