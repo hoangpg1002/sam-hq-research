@@ -192,8 +192,8 @@ class DualImageEncoderViT(ImageEncoderViT):
         self.feature_extractor=CNNextractor()
         self.cross_branch_adapter=CrossBranchAdapter()
     def forward(self, x: torch.Tensor) -> torch.Tensor:
-            image_with_grad=self.generalized_image_grad(x) + x
-            add_features=self.feature_extractor(image_with_grad)
+            #image_with_grad=self.generalized_image_grad(x) + x
+            add_features=self.feature_extractor(x)
             x = self.patch_embed(x) #(1,64,64,768)
             if self.pos_embed is not None:
                 x = x + self.pos_embed
