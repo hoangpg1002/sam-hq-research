@@ -111,11 +111,38 @@ class MLPBlock(nn.Module):
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         return self.lin2(self.act(self.lin1(x)))   
+# class CrossBranchAdapter(nn.Module):
+#     def __init__(self):
+#         super(CrossBranchAdapter, self).__init__()
+#         self.mean_pool = nn.AdaptiveMaxPool2d((64,64))
+#         self.mlp_block_1=MLPBlock(embedding_dim=512,mlp_dim=512*2,out_dim=256,act=nn.GELU)
+#         self.sigmoid = nn.Sigmoid()
+#         # self.h1 = nn.Linear(4096, 64)
+#         # self.h2 = nn.Linear(64, 4096)
+#     def forward(self, tensor1, tensor2):
+#         # Concatenate 2 tensors along the channel dimension
+#         Fc=tensor1
+#         Ft=tensor2
+#         concat_tensor = torch.cat([tensor1,tensor2],dim=1) #(1,512,64,64)
+
+#         # Max and Mean pooling operations on concat_tensor
+#         mean_pool = self.mean_pool(concat_tensor) #(1,512,64,64)
+#         Wc=self.sigmoid(self.mlp_block_1(mean_pool.permute(0,2,3,1))).permute(0,3,1,2)
+#         Wt=self.sigmoid(self.mlp_block_1(mean_pool.permute(0,2,3,1))).permute(0,3,1,2)
+#         Filterc=torch.mul(Fc,Wc)
+#         Filtert=torch.mul(Ft,Wt)
+#         RecC=Filterc+Fc
+#         RecT=Filtert+Ft
+#         Ac = torch.exp(RecC) / (torch.exp(RecC) + torch.exp(RecT))
+#         At = torch.exp(RecT) / (torch.exp(RecT) + torch.exp(RecC))
+#         final_feature=Ac*Fc+At*Ft
+#         return final_feature
 class CrossBranchAdapter(nn.Module):
     def __init__(self):
         super(CrossBranchAdapter, self).__init__()
-        self.mean_pool = nn.AdaptiveMaxPool2d((64,64))
-        self.mlp_block_1=MLPBlock(embedding_dim=512,mlp_dim=512*2,out_dim=256,act=nn.GELU)
+        self.mean_pool = nn.AdaptiveAvgPool2d((64,64))
+        self.max_pool = nn.AdaptiveMaxPool2d((64,64))
+        self.mlp_block_1=MLPBlock(embedding_dim=512,mlp_dim=1024,out_dim=256,act=nn.GELU)
         self.sigmoid = nn.Sigmoid()
         # self.h1 = nn.Linear(4096, 64)
         # self.h2 = nn.Linear(64, 4096)
@@ -123,12 +150,14 @@ class CrossBranchAdapter(nn.Module):
         # Concatenate 2 tensors along the channel dimension
         Fc=tensor1
         Ft=tensor2
-        concat_tensor = torch.cat([tensor1,tensor2],dim=1) #(1,512,64,64)
+        concat_tensor = tensor1+tensor2 #(1,256,64,64)
 
         # Max and Mean pooling operations on concat_tensor
-        mean_pool = self.mean_pool(concat_tensor) #(1,512,64,64)
-        Wc=self.sigmoid(self.mlp_block_1(mean_pool.permute(0,2,3,1))).permute(0,3,1,2)
-        Wt=self.sigmoid(self.mlp_block_1(mean_pool.permute(0,2,3,1))).permute(0,3,1,2)
+        mean_pool = self.mean_pool(concat_tensor) #(1,256,64,64)
+        max_pool=self.max_pool(concat_tensor)
+        pooled_concat= torch.cat([mean_pool,max_pool],dim=1) 
+        Wc=self.sigmoid(self.mlp_block_1(pooled_concat.permute(0,2,3,1))).permute(0,3,1,2)
+        Wt=self.sigmoid(self.mlp_block_1(pooled_concat.permute(0,2,3,1))).permute(0,3,1,2)
         Filterc=torch.mul(Fc,Wc)
         Filtert=torch.mul(Ft,Wt)
         RecC=Filterc+Fc
