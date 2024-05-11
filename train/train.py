@@ -88,7 +88,7 @@ class CrossBranchAdapter(nn.Module):
         self.downchannel=nn.Conv2d(in_channels=1536,out_channels=768,kernel_size=1,stride=1)
         self.max_pool = nn.AdaptiveMaxPool2d((64,64))
         self.mean_pool = nn.AdaptiveAvgPool2d((64,64))
-        self.mlp=MLPBlock(embedding_dim=768,mlp_dim=768*2,out_dim=768,act=nn.GELU)
+        self.mlp=MLPBlock(embedding_dim=768,mlp_dim=768*4,out_dim=768,act=nn.GELU)
         #self.mlp = MLPBlock(embedding_dim=768, mlp_dim=int(768 * 2), act=nn.GELU)
     def forward(self, tensor1, tensor2):
         # Concatenate 2 tensors along the channel dimension
