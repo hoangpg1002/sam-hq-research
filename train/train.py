@@ -157,8 +157,8 @@ class CrossBranchAdapter(nn.Module):
     def __init__(self):
         super(CrossBranchAdapter, self).__init__()
         self.mean_pool = nn.AdaptiveAvgPool2d((64,64))
-        self.max_pool = nn.AdaptiveMaxPool2d((64,64))
-        self.mlp_block_1=MLPBlock(embedding_dim=512,mlp_dim=512*4,out_dim=256,act=nn.GELU)
+        self.mlp_block_1=MLPBlock(embedding_dim=512,mlp_dim=512*2,out_dim=256,act=nn.GELU)
+        self.mlp_block_2=MLPBlock(embedding_dim=512,mlp_dim=512*2,out_dim=256,act=nn.GELU)
         self.sigmoid = nn.Sigmoid()
         # self.h1 = nn.Linear(4096, 64)
         # self.h2 = nn.Linear(64, 4096)
@@ -166,14 +166,12 @@ class CrossBranchAdapter(nn.Module):
         # Concatenate 2 tensors along the channel dimension
         Fc=tensor1
         Ft=tensor2
-        concat_tensor = tensor1+tensor2 #(1,256,64,64)
+        concat_tensor = torch.cat([tensor1,tensor2],dim=1) #(1,256,64,64)
 
         # Max and Mean pooling operations on concat_tensor
         mean_pool = self.mean_pool(concat_tensor) #(1,256,64,64)
-        max_pool=self.max_pool(concat_tensor)
-        pooled_concat= torch.cat([mean_pool,max_pool],dim=1) 
-        Wc=self.sigmoid(self.mlp_block_1(pooled_concat.permute(0,2,3,1))).permute(0,3,1,2)
-        Wt=self.sigmoid(self.mlp_block_1(pooled_concat.permute(0,2,3,1))).permute(0,3,1,2)
+        Wc=self.sigmoid(self.mlp_block_1(mean_pool.permute(0,2,3,1))).permute(0,3,1,2)
+        Wt=self.sigmoid(self.mlp_block_2(mean_pool.permute(0,2,3,1))).permute(0,3,1,2)
         Filterc=torch.mul(Fc,Wc)
         Filtert=torch.mul(Ft,Wt)
         RecC=Filterc+Fc
