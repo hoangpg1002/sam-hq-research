@@ -344,7 +344,7 @@ class MaskDecoderHQ(MaskDecoder):
                                         nn.GELU(),
                                         nn.ConvTranspose2d(transformer_dim // 4, transformer_dim // 8, kernel_size=2, stride=2),
                                     )
-        self.compress_vit_feat_cnn = nn.Sequential(
+        self.embedding_encoder_cnn = nn.Sequential(
                                             nn.ConvTranspose2d(vit_dim, transformer_dim, kernel_size=2, stride=2),
                                             LayerNorm2d(transformer_dim),
                                             nn.GELU(), 
@@ -383,7 +383,7 @@ class MaskDecoderHQ(MaskDecoder):
 
         vit_features = interm_embeddings[0].permute(0, 3, 1, 2) #interm_embeddings[0] =(1,64,64,768) => (1,768,64,64)
         cnn_features= interm_embeddings[-1].permute(0,3,1,2)
-        hq_features=self.embedding_encoder(image_embeddings)+self.compress_vit_feat(vit_features)+self.compress_vit_feat_cnn(cnn_features)
+        hq_features=self.embedding_encoder(image_embeddings)+self.compress_vit_feat(vit_features)+self.embedding_encoder_cnn(cnn_features)
         batch_len = len(image_embeddings)
         masks = []
         iou_preds = []
