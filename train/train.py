@@ -182,7 +182,7 @@ class CrossBranchAdapter(nn.Module):
         RecT=Filtert_conv+Ft
         Ac = torch.exp(RecC) / (torch.exp(RecC) + torch.exp(RecT))
         At = torch.exp(RecT) / (torch.exp(RecT) + torch.exp(RecC))
-        final_feature=Ac*Fc+Fc+At*Ft+Ft
+        final_feature=Ac*Fc+At*Ft
         return final_feature
 # This class and its supporting functions below lightly adapted from the ViTDet backbone available at: https://github.com/facebookresearch/detectron2/blob/main/detectron2/modeling/backbone/vit.py # noqa
 class DualImageEncoderViT(ImageEncoderViT):
