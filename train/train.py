@@ -173,12 +173,10 @@ class CrossBranchAdapter(nn.Module):
         mean_pool = self.mean_pool(concat_tensor) #(1,256,64,64)
         Wc=self.sigmoid(self.mlp_block_1(mean_pool.permute(0,2,3,1))).permute(0,3,1,2)
         Wt=self.sigmoid(self.mlp_block_1(mean_pool.permute(0,2,3,1))).permute(0,3,1,2)
-        Filterc=torch.mul(Fc,Wt)
-        Filtert=torch.mul(Ft,Wc)
-        RecC=Filterc+Fc
-        RecT=Filtert+Ft
-        Ac = F.softmax(RecC,dim=1)
-        At = F.softmax(RecT,dim=1)
+        Filterc=torch.mul(Fc,Wc) +Fc
+        Filtert=torch.mul(Ft,Wt) +Ft
+        Ac = self.sigmoid(Filterc)
+        At = self.sigmoid(Filtert)
         final_feature=Ac*Fc+At*Ft
         return final_feature
 # This class and its supporting functions below lightly adapted from the ViTDet backbone available at: https://github.com/facebookresearch/detectron2/blob/main/detectron2/modeling/backbone/vit.py # noqa
