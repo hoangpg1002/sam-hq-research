@@ -92,7 +92,7 @@ class CrossBranchAdapter(nn.Module):
         #conv_out = self.mlp(conv_out.permute(0,2,3,1))
         #print(conv_out.shape) #torch.Size([1, 768, 64, 64])
         #conv_out=self.mlp(conv_out.permute(0,2,3,1)) 
-        return conv_out
+        return conv_out.permute(0,2,3,1)
 # class MLPBlock(nn.Module):
 #     def __init__(
 #         self,
