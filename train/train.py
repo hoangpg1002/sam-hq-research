@@ -70,7 +70,7 @@ class CrossBranchAdapter(nn.Module):
         super(CrossBranchAdapter, self).__init__()
         self.conv = nn.Sequential(nn.Conv2d(in_channels=1536,out_channels=1536,kernel_size=7, padding=3, stride=1,groups=1536),nn.Sigmoid())
         #self.upchannel=nn.Conv2d(in_channels=512,out_channels=768,kernel_size=1,stride=1)
-        self.downchannel=nn.Conv2d(in_channels=1536,out_channels=768,kernel_size=3,stride=1)
+        self.downchannel=nn.Conv2d(in_channels=1536,out_channels=768,kernel_size=1,stride=1)
         self.max_pool = nn.AdaptiveMaxPool2d((64,64))
         self.mean_pool = nn.AdaptiveAvgPool2d((64,64))
     def forward(self, tensor1, tensor2):
