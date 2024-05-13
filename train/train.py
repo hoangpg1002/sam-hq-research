@@ -77,10 +77,9 @@ class MLPBlock(nn.Module):
         self.lin1 = nn.Linear(embedding_dim, mlp_dim)
         self.lin2 = nn.Linear(mlp_dim, out_dim)
         self.act = act()
-        self.drop=nn.Dropout(0.1)
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
-        return self.lin2(self.drop(self.act(self.lin1(x))))
+        return self.lin2((self.act(self.lin1(x))))
 # class CrossBranchAdapter(nn.Module):
 #     def __init__(self):
 #         super(CrossBranchAdapter, self).__init__()
@@ -157,10 +156,10 @@ class CrossBranchAdapter(nn.Module):
     def __init__(self):
         super(CrossBranchAdapter, self).__init__()
         self.mean_pool = nn.AdaptiveAvgPool2d((64,64))
-        self.mlp_block_1=MLPBlock(embedding_dim=512,mlp_dim=512*4,out_dim=256,act=nn.GELU)
+        self.mlp_block_1=MLPBlock(embedding_dim=512,mlp_dim=512*2,out_dim=512,act=nn.GELU)
         #self.mlp_block_2=MLPBlock(embedding_dim=512,mlp_dim=512*2,out_dim=256,act=nn.GELU)
-        self.convc = nn.Sequential(nn.Conv2d(in_channels=256,out_channels=256,kernel_size=3, padding=1, stride=1,groups=256),LayerNorm2d(256),nn.GELU())
-        self.convt = nn.Sequential(nn.Conv2d(in_channels=256,out_channels=256,kernel_size=3, padding=1, stride=1,groups=256),LayerNorm2d(256),nn.GELU())
+        self.convc = nn.Sequential(nn.Conv2d(in_channels=512,out_channels=256,kernel_size=3, padding=1, stride=1),LayerNorm2d(256),nn.GELU())
+        self.convt = nn.Sequential(nn.Conv2d(in_channels=512,out_channels=256,kernel_size=3, padding=1, stride=1),LayerNorm2d(256),nn.GELU())
         self.sigmoid = nn.Sigmoid()
         # self.h1 = nn.Linear(4096, 64)
         # self.h2 = nn.Linear(64, 4096)
@@ -168,20 +167,20 @@ class CrossBranchAdapter(nn.Module):
         # Concatenate 2 tensors along the channel dimension
         Fc=tensor1
         Ft=tensor2
-        concat_tensor = torch.cat([tensor1,tensor2],dim=1) #(1,256,64,64)
+        concat_tensor = torch.cat([tensor1,tensor2],dim=1) #(1,512,64,64)
 
         # Max and Mean pooling operations on concat_tensor
         mean_pool = self.mean_pool(concat_tensor) #(1,256,64,64)
         Wc=self.sigmoid(self.mlp_block_1(mean_pool.permute(0,2,3,1))).permute(0,3,1,2)
         Wt=self.sigmoid(self.mlp_block_1(mean_pool.permute(0,2,3,1))).permute(0,3,1,2)
+        Wc=self.convc(Wc)
+        Wt=self.convt(Wt)
         Filterc=torch.mul(Fc,Wc)
         Filtert=torch.mul(Ft,Wt)
-        Filterc_conv=self.convc(Filterc)
-        Filtert_conv=self.convt(Filtert)
-        RecC=Filterc_conv+Fc
-        RecT=Filtert_conv+Ft
-        Ac = torch.exp(RecC) / (torch.exp(RecC) + torch.exp(RecT))
-        At = torch.exp(RecT) / (torch.exp(RecT) + torch.exp(RecC))
+        RecC=Filterc+Fc
+        RecT=Filtert+Ft
+        Ac = F.softmax(RecC)
+        At = F.softmax(RecT)
         final_feature=Ac*Fc+At*Ft
         return final_feature
 # This class and its supporting functions below lightly adapted from the ViTDet backbone available at: https://github.com/facebookresearch/detectron2/blob/main/detectron2/modeling/backbone/vit.py # noqa
