@@ -179,8 +179,8 @@ class CrossBranchAdapter(nn.Module):
         Filtert=torch.mul(Ft,Wt)
         RecC=Filterc+Fc
         RecT=Filtert+Ft
-        Ac = F.softmax(RecC)
-        At = F.softmax(RecT)
+        Ac = F.softmax(RecC,dim=1)
+        At = F.softmax(RecT,dim=1)
         final_feature=Ac*Fc+At*Ft
         return final_feature
 # This class and its supporting functions below lightly adapted from the ViTDet backbone available at: https://github.com/facebookresearch/detectron2/blob/main/detectron2/modeling/backbone/vit.py # noqa
