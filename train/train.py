@@ -560,7 +560,7 @@ def main(net,encoder,train_datasets, valid_datasets):
  
     ### --- Step 3: Train or Evaluate ---
     print("--- define optimizer ---")
-    optimizer = optim.AdamW(net.parameters(), lr=0.001, betas=(0.9, 0.999), eps=1e-08, weight_decay=0)
+    optimizer = optim.Adam(net.parameters(), lr=0.001, betas=(0.9, 0.999), eps=1e-08, weight_decay=0)
     lr_scheduler = torch.optim.lr_scheduler.StepLR(optimizer, 10)
     lr_scheduler.last_epoch = 0
     train(net, encoder,optimizer, train_dataloaders, valid_dataloaders, lr_scheduler)
@@ -597,7 +597,7 @@ def train(net,encoder,optimizer, train_dataloaders, valid_dataloaders, lr_schedu
         metric_logger = misc.MetricLogger(delimiter="  ")
         # train_dataloaders.batch_sampler.sampler.set_epoch(epoch)
 
-        for data in metric_logger.log_every(train_dataloaders,100):
+        for data in metric_logger.log_every(train_dataloaders,1000):
             inputs, labels = data['image'], data['label']
             if torch.cuda.is_available():
                 inputs = inputs.to(device="cuda")
@@ -954,10 +954,10 @@ if __name__ == "__main__":
                  "im_ext": ".jpg",
                  "gt_ext": ".png"}
 
-    #train_datasets = [dataset_dis, dataset_thin, dataset_fss, dataset_duts, dataset_duts_te, dataset_ecssd, dataset_msra]
-    train_datasets = [dataset_thin]
-    #valid_datasets = [dataset_dis_val, dataset_coift_val, dataset_hrsod_val, dataset_thin_val] 
-    valid_datasets = [dataset_thin_val,dataset_coift_val,dataset_hrsod_val] 
+    train_datasets = [dataset_dis, dataset_thin, dataset_fss, dataset_duts, dataset_duts_te, dataset_ecssd, dataset_msra]
+    #train_datasets = [dataset_thin]
+    valid_datasets = [dataset_dis_val, dataset_coift_val, dataset_hrsod_val, dataset_thin_val] 
+    #valid_datasets = [dataset_thin_val,dataset_coift_val,dataset_hrsod_val] 
 
     # args = get_args_parser()
     net = MaskDecoderHQ("vit_b") 
