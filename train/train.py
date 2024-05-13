@@ -156,10 +156,10 @@ class CrossBranchAdapter(nn.Module):
     def __init__(self):
         super(CrossBranchAdapter, self).__init__()
         self.mean_pool = nn.AdaptiveAvgPool2d((64,64))
-        self.mlp_block_1=MLPBlock(embedding_dim=512,mlp_dim=512*2,out_dim=512,act=nn.GELU)
+        self.mlp_block_1=MLPBlock(embedding_dim=512,mlp_dim=512*2,out_dim=256,act=nn.GELU)
         #self.mlp_block_2=MLPBlock(embedding_dim=512,mlp_dim=512*2,out_dim=256,act=nn.GELU)
-        self.convc = nn.Sequential(nn.Conv2d(in_channels=512,out_channels=256,kernel_size=3, padding=1, stride=1),LayerNorm2d(256),nn.GELU())
-        self.convt = nn.Sequential(nn.Conv2d(in_channels=512,out_channels=256,kernel_size=3, padding=1, stride=1),LayerNorm2d(256),nn.GELU())
+        # self.convc = nn.Sequential(nn.Conv2d(in_channels=512,out_channels=256,kernel_size=3, padding=1, stride=1),LayerNorm2d(256),nn.GELU())
+        # self.convt = nn.Sequential(nn.Conv2d(in_channels=512,out_channels=256,kernel_size=3, padding=1, stride=1),LayerNorm2d(256),nn.GELU())
         self.sigmoid = nn.Sigmoid()
         # self.h1 = nn.Linear(4096, 64)
         # self.h2 = nn.Linear(64, 4096)
@@ -173,10 +173,8 @@ class CrossBranchAdapter(nn.Module):
         mean_pool = self.mean_pool(concat_tensor) #(1,256,64,64)
         Wc=self.sigmoid(self.mlp_block_1(mean_pool.permute(0,2,3,1))).permute(0,3,1,2)
         Wt=self.sigmoid(self.mlp_block_1(mean_pool.permute(0,2,3,1))).permute(0,3,1,2)
-        Wc=self.convc(Wc)
-        Wt=self.convt(Wt)
-        Filterc=torch.mul(Fc,Wc)
-        Filtert=torch.mul(Ft,Wt)
+        Filterc=torch.mul(Fc,Wt)
+        Filtert=torch.mul(Ft,Wc)
         RecC=Filterc+Fc
         RecT=Filtert+Ft
         Ac = F.softmax(RecC,dim=1)
