@@ -56,7 +56,7 @@ class CNNextractor(nn.Module):
         super(CNNextractor, self).__init__()
         self.model= EfficientNet.from_pretrained('efficientnet-b0')
         for n,p in self.model.named_parameters():
-            p.requires_grad=True
+            p.requires_grad=False
         self.conv=nn.Sequential(
                 nn.AdaptiveAvgPool2d((64,64)),
                 nn.Conv2d(in_channels=1280,out_channels=256,kernel_size=3,stride=1,padding=1)
