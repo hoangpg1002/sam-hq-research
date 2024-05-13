@@ -155,29 +155,25 @@ class MLPBlock(nn.Module):
 class CrossBranchAdapter(nn.Module):
     def __init__(self):
         super(CrossBranchAdapter, self).__init__()
+        self.max_pool = nn.AdaptiveMaxPool2d((64,64))
         self.mean_pool = nn.AdaptiveAvgPool2d((64,64))
-        self.mlp_block_1=MLPBlock(embedding_dim=512,mlp_dim=512*2,out_dim=256,act=nn.GELU)
         #self.mlp_block_2=MLPBlock(embedding_dim=512,mlp_dim=512*2,out_dim=256,act=nn.GELU)
-        # self.convc = nn.Sequential(nn.Conv2d(in_channels=512,out_channels=256,kernel_size=3, padding=1, stride=1),LayerNorm2d(256),nn.GELU())
-        # self.convt = nn.Sequential(nn.Conv2d(in_channels=512,out_channels=256,kernel_size=3, padding=1, stride=1),LayerNorm2d(256),nn.GELU())
+        self.conv = nn.Sequential(nn.Conv2d(in_channels=512,out_channels=512,kernel_size=3, padding=1, stride=1,groups=512),nn.Sigmoid())
+        self.dchannels = nn.Sequential(nn.Conv2d(in_channels=512,out_channels=256,kernel_size=3, padding=1, stride=1),LayerNorm2d(256),nn.GELU())
         self.sigmoid = nn.Sigmoid()
         # self.h1 = nn.Linear(4096, 64)
         # self.h2 = nn.Linear(64, 4096)
     def forward(self, tensor1, tensor2):
         # Concatenate 2 tensors along the channel dimension
-        Fc=tensor1
-        Ft=tensor2
-        concat_tensor = torch.cat([tensor1,tensor2],dim=1) #(1,512,64,64)
-
+        concat_tensor = tensor1+tensor2 #(1,256,64,64)
+        shortcut_concat= concat_tensor
         # Max and Mean pooling operations on concat_tensor
-        mean_pool = self.mean_pool(concat_tensor) #(1,256,64,64)
-        Wc=self.sigmoid(self.mlp_block_1(mean_pool.permute(0,2,3,1))).permute(0,3,1,2)
-        Wt=self.sigmoid(self.mlp_block_1(mean_pool.permute(0,2,3,1))).permute(0,3,1,2)
-        Filterc=torch.mul(Fc,Wc) +Fc
-        Filtert=torch.mul(Ft,Wt) +Ft
-        Ac = self.sigmoid(Filterc)
-        At = self.sigmoid(Filtert)
-        final_feature=Ac*Fc+At*Ft
+        mean_pooled = self.mean_pool(concat_tensor) #(1,256,64,64)
+        max_pooled = self.max_pool(concat_tensor)
+        pooled_concat=torch.cat([max_pooled,mean_pooled],dim=1)
+        w_conv=self.conv(pooled_concat)
+        w_conv=self.dchannels(w_conv)
+        final_feature=shortcut_concat*w_conv+shortcut_concat
         return final_feature
 # This class and its supporting functions below lightly adapted from the ViTDet backbone available at: https://github.com/facebookresearch/detectron2/blob/main/detectron2/modeling/backbone/vit.py # noqa
 class DualImageEncoderViT(ImageEncoderViT):
@@ -595,8 +591,8 @@ def main(net,encoder,train_datasets, valid_datasets):
     lr_scheduler = torch.optim.lr_scheduler.StepLR(optimizer, 10)
     lr_scheduler.last_epoch = 0
     train(net, encoder,optimizer, train_dataloaders, valid_dataloaders, lr_scheduler)
-    sam = sam_model_registry["vit_b"](checkpoint="/kaggle/working/training/pretrained_checkpoint/sam_vit_b_01ec64.pth").to(device="cuda")
-    evaluate(net,encoder,sam, valid_dataloaders)
+    #sam = sam_model_registry["vit_b"](checkpoint="/kaggle/working/training/pretrained_checkpoint/sam_vit_b_01ec64.pth").to(device="cuda")
+    #evaluate(net,encoder,sam, valid_dataloaders)
 
 
 def train(net,encoder,optimizer, train_dataloaders, valid_dataloaders, lr_scheduler):
