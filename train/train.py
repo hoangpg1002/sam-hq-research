@@ -159,7 +159,7 @@ class CrossBranchAdapter(nn.Module):
 #         return final_feature
 # This class and its supporting functions below lightly adapted from the ViTDet backbone available at: https://github.com/facebookresearch/detectron2/blob/main/detectron2/modeling/backbone/vit.py # noqa
 class DualImageEncoderViT(ImageEncoderViT):
-    def __init__(self,model_type):
+    def __init__(self,model_type,is_train):
         """
         Args:
             img_size (int): Input image size.
@@ -211,6 +211,9 @@ class DualImageEncoderViT(ImageEncoderViT):
                 param.requires_grad = False
         self.feature_extractor=CNNextractor()
         self.cross_branch_adapter=CrossBranchAdapter()
+        if is_train==True:
+            self.load_state_dict(torch.load("D:/StableDiffusion/sam-hq/train/pth/epoch_4encoder.pth"))
+            print("encoder load pretrained!")
     def forward(self, x: torch.Tensor) -> torch.Tensor:
             add_features=self.feature_extractor(x)
             x = self.patch_embed(x) #(1,64,64,768)
@@ -270,7 +273,7 @@ class MLP(nn.Module):
         return x
 
 class MaskDecoderHQ(MaskDecoder):
-    def __init__(self, model_type):
+    def __init__(self, model_type,is_train):
         super().__init__(transformer_dim=256,
                         transformer=TwoWayTransformer(
                                 depth=2,
@@ -323,6 +326,9 @@ class MaskDecoderHQ(MaskDecoder):
                                         LayerNorm2d(transformer_dim // 4),
                                         nn.GELU(),
                                         nn.Conv2d(transformer_dim // 4, transformer_dim // 8, 3, 1, 1))
+        if is_train==True:
+            self.load_state_dict(torch.load("D:/StableDiffusion/sam-hq/train/pth/epoch_4decoder.pth"))
+            print("decoder load pretrained!")
 
     def forward(
         self,
@@ -953,12 +959,12 @@ if __name__ == "__main__":
                  "im_ext": ".jpg",
                  "gt_ext": ".png"}
 
-    #train_datasets = [dataset_dis, dataset_thin, dataset_fss, dataset_duts, dataset_duts_te, dataset_ecssd, dataset_msra]
-    train_datasets = [dataset_thin]
-    #valid_datasets = [dataset_dis_val, dataset_coift_val, dataset_hrsod_val, dataset_thin_val] 
-    valid_datasets = [dataset_thin_val,dataset_coift_val,dataset_hrsod_val] 
+    train_datasets = [dataset_dis, dataset_thin, dataset_fss, dataset_duts, dataset_duts_te, dataset_ecssd, dataset_msra]
+    #train_datasets = [dataset_thin]
+    valid_datasets = [dataset_dis_val, dataset_coift_val, dataset_hrsod_val, dataset_thin_val] 
+    #valid_datasets = [dataset_thin_val,dataset_coift_val,dataset_hrsod_val] 
 
     # args = get_args_parser()
-    net = MaskDecoderHQ("vit_b") 
-    encoder=DualImageEncoderViT("vit_b")
+    net = MaskDecoderHQ("vit_b",is_train=True) 
+    encoder=DualImageEncoderViT("vit_b",is_train=True)
     main(net,encoder,train_datasets, valid_datasets)
