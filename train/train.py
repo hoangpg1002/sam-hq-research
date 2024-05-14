@@ -212,7 +212,7 @@ class DualImageEncoderViT(ImageEncoderViT):
         self.feature_extractor=CNNextractor()
         self.cross_branch_adapter=CrossBranchAdapter()
         if is_train==True:
-            self.load_state_dict(torch.load("D:/StableDiffusion/sam-hq/train/pth/epoch_4encoder.pth"))
+            self.load_state_dict(torch.load("/kaggle/working/training/pretrained_checkpoint/epoch_4encoder.pth"))
             print("encoder load pretrained!")
     def forward(self, x: torch.Tensor) -> torch.Tensor:
             add_features=self.feature_extractor(x)
@@ -327,7 +327,7 @@ class MaskDecoderHQ(MaskDecoder):
                                         nn.GELU(),
                                         nn.Conv2d(transformer_dim // 4, transformer_dim // 8, 3, 1, 1))
         if is_train==True:
-            self.load_state_dict(torch.load("D:/StableDiffusion/sam-hq/train/pth/epoch_4decoder.pth"))
+            self.load_state_dict(torch.load("/kaggle/working/training/pretrained_checkpoint/epoch_4decoder.pth"))
             print("decoder load pretrained!")
 
     def forward(
