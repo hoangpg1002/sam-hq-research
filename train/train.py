@@ -51,20 +51,73 @@ def seed_everything(seed: int):
     torch.backends.cudnn.benchmark = True
     
 seed_everything(42)
-class CNNextractor(nn.Module):
-    def __init__(self):
-        super(CNNextractor, self).__init__()
-        self.model= EfficientNet.from_pretrained('efficientnet-b0')
-        for n,p in self.model.named_parameters():
-            p.requires_grad=True
-        self.conv=nn.Sequential(
-                nn.AdaptiveMaxPool2d((64,64)),
-                nn.Conv2d(in_channels=1280,out_channels=768,kernel_size=3,stride=1,padding=1)
-            )
+class Downsample(nn.Module):
+    def __init__(self, in_channels):
+        super(Downsample, self).__init__()
+        self.conv = nn.Conv2d(in_channels, in_channels, kernel_size=2, stride=2)
+
     def forward(self, x):
-        feature=self.model.extract_features(x)
-        feature=self.conv(feature)
-        return feature.permute(0,2,3,1)
+        return self.conv(x)
+
+class ConvBlock(nn.Module):
+    def __init__(self, in_channels, out_channels):
+        super(ConvBlock, self).__init__()
+        self.depthwise_conv = nn.Conv2d(in_channels, in_channels, kernel_size=7, padding=3, groups=in_channels)
+        self.layer_norm = LayerNorm2d(in_channels)
+        self.pointwise_conv1 = nn.Conv2d(in_channels, out_channels, kernel_size=1)
+        self.gelu = nn.GELU()
+        self.pointwise_conv2 = nn.Conv2d(out_channels, out_channels, kernel_size=1)
+        self.layer_scale = nn.Parameter(torch.ones(out_channels, 1, 1))
+        self.drop_path = nn.Identity()  # Replace with nn.Dropout(p) if you want to add dropout
+        self.residual_conv = nn.Conv2d(in_channels, out_channels, kernel_size=1, stride=1)
+    def forward(self, x):
+        residual = x
+        residual = self.residual_conv(residual)
+        x = self.depthwise_conv(x)
+        x = self.layer_norm(x)
+        x = self.pointwise_conv1(x)
+        x = self.gelu(x)
+        x = self.pointwise_conv2(x)
+        x = self.layer_scale * x
+        x = self.drop_path(x)
+        x += residual
+        return x
+
+class ConvNextEncoder(nn.Module):
+    def __init__(self, in_channels, block_channels):
+        super(ConvNextEncoder, self).__init__()
+        blocks = []
+        num_blocks = len(block_channels)
+        for i in range(num_blocks):
+            if i > 0:
+                blocks.append(Downsample(block_channels[i-1]))
+            blocks.append(ConvBlock(in_channels if i == 0 else block_channels[i-1], block_channels[i]))
+        self.blocks = nn.Sequential(*blocks)
+
+    def forward(self, x):
+        return self.blocks(x)
+
+class FeatureExtractor(nn.Module):
+    def __init__(self, in_channels=3, block_channels=[64, 128, 256, 512, 768]):
+        super(FeatureExtractor, self).__init__()
+        self.encoder = ConvNextEncoder(in_channels, block_channels)
+
+    def forward(self, x):
+        return self.encoder(x)
+# class CNNextractor(nn.Module):
+#     def __init__(self):
+#         super(CNNextractor, self).__init__()
+#         self.model= EfficientNet.from_pretrained('efficientnet-b0')
+#         for n,p in self.model.named_parameters():
+#             p.requires_grad=True
+#         self.conv=nn.Sequential(
+#                 nn.AdaptiveMaxPool2d((64,64)),
+#                 nn.Conv2d(in_channels=1280,out_channels=768,kernel_size=3,stride=1,padding=1)
+#             )
+#     def forward(self, x):
+#         feature=self.model.extract_features(x)
+#         feature=self.conv(feature)
+#         return feature.permute(0,2,3,1)
 class CrossBranchAdapter(nn.Module):
     def __init__(self):
         super(CrossBranchAdapter, self).__init__()
@@ -75,7 +128,7 @@ class CrossBranchAdapter(nn.Module):
         self.mean_pool = nn.AdaptiveAvgPool2d((64,64))
     def forward(self, tensor1, tensor2):
         # Concatenate 2 tensors along the channel dimension
-        concat_tensor = tensor1.permute(0, 3, 1, 2) + tensor2.permute(0, 3, 1, 2) #([1, 768, 64, 64])
+        concat_tensor = tensor1.permute(0, 3, 1, 2) + tensor2 #([1, 768, 64, 64])
         shortcut=concat_tensor
 
         # Max and Mean pooling operations on concat_tensor
@@ -209,7 +262,7 @@ class DualImageEncoderViT(ImageEncoderViT):
                 param.requires_grad = True
             else:
                 param.requires_grad = False
-        self.feature_extractor=CNNextractor()
+        self.feature_extractor=FeatureExtractor()
         self.cross_branch_adapter=CrossBranchAdapter()
         if is_train==True:
             self.load_state_dict(torch.load("/kaggle/working/training/pretrained_checkpoint/epoch_4encoder.pth"))
@@ -959,12 +1012,12 @@ if __name__ == "__main__":
                  "im_ext": ".jpg",
                  "gt_ext": ".png"}
 
-    train_datasets = [dataset_dis, dataset_thin, dataset_fss, dataset_duts, dataset_duts_te, dataset_ecssd, dataset_msra]
-    #train_datasets = [dataset_thin]
-    valid_datasets = [dataset_dis_val, dataset_coift_val, dataset_hrsod_val, dataset_thin_val] 
-    #valid_datasets = [dataset_thin_val,dataset_coift_val,dataset_hrsod_val] 
+    #train_datasets = [dataset_dis, dataset_thin, dataset_fss, dataset_duts, dataset_duts_te, dataset_ecssd, dataset_msra]
+    train_datasets = [dataset_thin]
+    #valid_datasets = [dataset_dis_val, dataset_coift_val, dataset_hrsod_val, dataset_thin_val] 
+    valid_datasets = [dataset_thin_val,dataset_coift_val,dataset_hrsod_val] 
 
     # args = get_args_parser()
-    net = MaskDecoderHQ("vit_b",is_train=True) 
-    encoder=DualImageEncoderViT("vit_b",is_train=True)
+    net = MaskDecoderHQ("vit_b",is_train=False) 
+    encoder=DualImageEncoderViT("vit_b",is_train=False)
     main(net,encoder,train_datasets, valid_datasets)
