@@ -409,7 +409,7 @@ class MaskDecoderHQ(MaskDecoder):
         """
 
         vit_features = interm_embeddings[0].permute(0, 3, 1, 2) #interm_embeddings[0] =(1,64,64,768) => (1,768,64,64)
-        cnn_features= interm_embeddings[-1].permute(0,3,1,2)
+        cnn_features= interm_embeddings[-1]
         hq_features=self.embedding_encoder(image_embeddings)+self.compress_vit_feat(vit_features)+self.compress_vit_feat_cnn(cnn_features)
         batch_len = len(image_embeddings)
         masks = []
