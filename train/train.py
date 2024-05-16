@@ -62,13 +62,13 @@ class Downsample(nn.Module):
 class ConvBlock(nn.Module):
     def __init__(self, in_channels, out_channels):
         super(ConvBlock, self).__init__()
-        self.depthwise_conv = nn.Conv2d(in_channels, in_channels, kernel_size=7, padding=3, groups=in_channels)
+        self.depthwise_conv = nn.Conv2d(in_channels, in_channels, kernel_size=3, padding=3//2, groups=in_channels)
         self.layer_norm = LayerNorm2d(in_channels)
         self.pointwise_conv1 = nn.Conv2d(in_channels, out_channels, kernel_size=1)
         self.gelu = nn.GELU()
         self.pointwise_conv2 = nn.Conv2d(out_channels, out_channels, kernel_size=1)
         self.layer_scale = nn.Parameter(torch.ones(out_channels, 1, 1))
-        self.drop_path = nn.Identity()  # Replace with nn.Dropout(p) if you want to add dropout
+        self.drop_path = nn.Dropout2d(p=0.1)  
         self.residual_conv = nn.Conv2d(in_channels, out_channels, kernel_size=1, stride=1)
     def forward(self, x):
         residual = x
