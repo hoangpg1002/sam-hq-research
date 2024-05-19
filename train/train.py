@@ -67,7 +67,6 @@ class ConvBlock(nn.Module):
         self.pointwise_conv1 = nn.Conv2d(in_channels, out_channels, kernel_size=1)
         self.gelu = nn.GELU()
         self.pointwise_conv2 = nn.Conv2d(out_channels, out_channels, kernel_size=1)
-        self.layer_scale = nn.Parameter(torch.ones(out_channels, 1, 1))
         self.drop_path = nn.Dropout2d(p=0.1)  
         self.residual_conv = nn.Conv2d(in_channels, out_channels, kernel_size=1, stride=1)
     def forward(self, x):
@@ -77,12 +76,32 @@ class ConvBlock(nn.Module):
         x = self.layer_norm(x)
         x = self.pointwise_conv1(x)
         x = self.gelu(x)
-        x = self.pointwise_conv2(x)
-        x = self.layer_scale * x
         x = self.drop_path(x)
         x += residual
         return x
-
+# class ConvBlock(nn.Module):
+#     def __init__(self, in_channels, out_channels):
+#         super(ConvBlock, self).__init__()
+#         self.depthwise_conv = nn.Conv2d(in_channels, in_channels, kernel_size=3, padding=3//2, groups=in_channels)
+#         self.layer_norm = LayerNorm2d(in_channels)
+#         self.pointwise_conv1 = nn.Conv2d(in_channels, out_channels, kernel_size=1)
+#         self.gelu = nn.GELU()
+#         self.pointwise_conv2 = nn.Conv2d(out_channels, out_channels, kernel_size=1)
+#         self.layer_scale = nn.Parameter(torch.ones(out_channels, 1, 1))
+#         self.drop_path = nn.Dropout2d(p=0.1)  
+#         self.residual_conv = nn.Conv2d(in_channels, out_channels, kernel_size=1, stride=1)
+#     def forward(self, x):
+#         residual = x
+#         residual = self.residual_conv(residual)
+#         x = self.depthwise_conv(x)
+#         x = self.layer_norm(x)
+#         x = self.pointwise_conv1(x)
+#         x = self.gelu(x)
+#         x = self.pointwise_conv2(x)
+#         x = self.layer_scale * x
+#         x = self.drop_path(x)
+#         x += residual
+#         return x
 class ConvNextEncoder(nn.Module):
     def __init__(self, in_channels, block_channels):
         super(ConvNextEncoder, self).__init__()
