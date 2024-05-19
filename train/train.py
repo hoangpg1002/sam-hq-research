@@ -1037,6 +1037,6 @@ if __name__ == "__main__":
     #valid_datasets = [dataset_thin_val,dataset_coift_val,dataset_hrsod_val] 
 
     # args = get_args_parser()
-    net = MaskDecoderHQ("vit_b",is_train=True) 
-    encoder=DualImageEncoderViT("vit_b",is_train=True)
+    net = MaskDecoderHQ("vit_b",is_train=False) 
+    encoder=DualImageEncoderViT("vit_b",is_train=False)
     main(net,encoder,train_datasets, valid_datasets)
