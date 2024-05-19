@@ -1033,7 +1033,7 @@ if __name__ == "__main__":
 
     #train_datasets = [dataset_dis, dataset_thin, dataset_fss, dataset_duts, dataset_duts_te, dataset_ecssd, dataset_msra]
     train_datasets = [dataset_thin]
-    valid_datasets = [dataset_dis_val, dataset_coift_val, dataset_hrsod_val, dataset_thin_val] 
+    valid_datasets = [dataset_thin_val] 
     #valid_datasets = [dataset_thin_val,dataset_coift_val,dataset_hrsod_val] 
 
     # args = get_args_parser()
