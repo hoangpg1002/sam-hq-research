@@ -284,7 +284,7 @@ class DualImageEncoderViT(ImageEncoderViT):
         self.feature_extractor=FeatureExtractor()
         self.cross_branch_adapter=CrossBranchAdapter()
         if is_train==True:
-            self.load_state_dict(torch.load("/kaggle/working/training/pretrained_checkpoint/epoch_4encoder.pth"))
+            self.load_state_dict(torch.load("/kaggle/working/training/pretrained_checkpoint/epoch_5encoder.pth"))
             print("encoder load pretrained!")
     def forward(self, x: torch.Tensor) -> torch.Tensor:
             add_features=self.feature_extractor(x)
@@ -399,7 +399,7 @@ class MaskDecoderHQ(MaskDecoder):
                                         nn.GELU(),
                                         nn.Conv2d(transformer_dim // 4, transformer_dim // 8, 3, 1, 1))
         if is_train==True:
-            self.load_state_dict(torch.load("/kaggle/working/training/pretrained_checkpoint/epoch_4decoder.pth"))
+            self.load_state_dict(torch.load("/kaggle/working/training/pretrained_checkpoint/epoch_5decoder.pth"))
             print("decoder load pretrained!")
 
     def forward(
@@ -640,7 +640,7 @@ def main(net,encoder,train_datasets, valid_datasets):
     optimizer = optim.Adam(net.parameters(), lr=0.001, betas=(0.9, 0.999), eps=1e-08, weight_decay=0)
     lr_scheduler = torch.optim.lr_scheduler.StepLR(optimizer, 10)
     lr_scheduler.last_epoch = 0
-    train(net, encoder,optimizer, train_dataloaders, valid_dataloaders, lr_scheduler)
+    #train(net, encoder,optimizer, train_dataloaders, valid_dataloaders, lr_scheduler)
     sam = sam_model_registry["vit_b"](checkpoint="/kaggle/working/training/pretrained_checkpoint/sam_vit_b_01ec64.pth").to(device="cuda")
     evaluate(net,encoder,sam, valid_dataloaders)
 
@@ -1037,6 +1037,6 @@ if __name__ == "__main__":
     #valid_datasets = [dataset_thin_val,dataset_coift_val,dataset_hrsod_val] 
 
     # args = get_args_parser()
-    net = MaskDecoderHQ("vit_b",is_train=False) 
-    encoder=DualImageEncoderViT("vit_b",is_train=False)
+    net = MaskDecoderHQ("vit_b",is_train=True) 
+    encoder=DualImageEncoderViT("vit_b",is_train=True)
     main(net,encoder,train_datasets, valid_datasets)
