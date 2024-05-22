@@ -123,276 +123,7 @@ class FeatureExtractor(nn.Module):
 
     def forward(self, x):
         return self.encoder(x)
-##=========================
-import numpy as np
-from skimage.filters import sobel
 
-import numpy as np
-import torch
-from skimage.filters import sobel
-import torch
-import torch.nn as nn
-import torch.nn.functional as F
-from collections import OrderedDict
-from copy import deepcopy
-from torchvision.ops import RoIAlign as ROIAlign
-import os, sys
-import layers_WS as L
-
-def imgradient(mask):
-    """ Equivalent to 'imgradient' in MATLAB with mode='sobel'
-    Reference: https://stackoverflow.com/a/47835313
-    """
-    sobelx = cv2.Sobel(mask, cv2.CV_64F, 1, 0)
-    sobely = cv2.Sobel(mask, cv2.CV_64F, 0, 1)
-    magnitude = np.sqrt(sobelx**2.0 + sobely**2.0)
-    angle = np.arctan2(sobely, sobelx) * (180 / np.pi)
-    return magnitude, angle
-def compute_image_gradient(image_batch, method='sobel'):
-    """
-    Compute image gradient for a batch of images.
-
-    Parameters:
-    - image_batch: Input batch of images with shape (n, 3, H, W).
-    - method: Gradient computation method (default is 'sobel').
-
-    Returns:
-    - img_grad_batch: Batch of image gradients normalized to [0,1], with shape (n, H, W).
-    """
-    assert image_batch.ndim == 4 and image_batch.shape[1] == 3, "Input batch must be 4-dimensional with shape (n, 3, H, W)."
-
-    n, _, h, w = image_batch.shape
-    img_grad_batch = np.zeros((n, h, w))
-
-    for i in range(n):
-        img = image_batch[i].cpu().numpy().transpose(1, 2, 0)  # Convert to (H, W, 3)
-        
-        if method == 'sobel':
-            # Apply sobel filter to compute image gradient
-            img_r = img[:, :, 0]
-            img_g = img[:, :, 1]
-            img_b = img[:, :, 2]
-            
-            grad_r = sobel(img_r)
-            grad_g = sobel(img_g)
-            grad_b = sobel(img_b)
-            
-            img_grad = np.sqrt(grad_r**2 + grad_g**2 + grad_b**2)
-            
-            # Normalize to [0,1]
-            img_grad = (img_grad - img_grad.min()) / (img_grad.max() - img_grad.min())
-        else:
-            raise NotImplementedError("Only 'sobel' method is implemented.")
-
-        img_grad_batch[i] = img_grad
-        
-    return torch.tensor(img_grad_batch)
-lr_size = 1024
-Conv2d = L.Conv2d
-norm_layer = L.GroupNorm
-def conv3x3(in_planes, out_planes, stride=1, dilation=1, padding=1):
-    """ 3x3 convolution with padding. """
-    return Conv2d(in_planes, out_planes, kernel_size=3, stride=stride,
-                  padding=padding, dilation=dilation, bias=False)
-
-def conv1x1(in_planes, out_planes, stride=1):
-    """ 1x1 convolution. """
-    return Conv2d(in_planes, out_planes, kernel_size=1, stride=stride, bias=False)
-class EncoderBlock(nn.Module):
-    def __init__(self, n_inputs, n_channels, n_side_channels, n_layers=1,
-                 pool=True, scale=1.0):
-        super(EncoderBlock, self).__init__()
-        layers = [self._make_block(n_inputs, n_channels, ks=3)]
-        for n in range(n_layers):
-            layers.append(self._make_block(n_channels, n_channels, ks=3))
-        self.main = nn.Sequential(*layers)
-        self.side = self._make_block(n_side_channels, n_channels, ks=1)
-        self.pool = nn.MaxPool2d((2, 2), stride=2, padding=0) if pool else None
-        self.scale = scale
-
-    def _make_block(self, in_channels, out_channels, ks=1):
-        if ks == 1:
-            conv = conv1x1(in_channels, out_channels)
-        elif ks == 3:
-            conv = conv3x3(in_channels, out_channels)
-        else:
-            raise NotImplementedError
-        norm = norm_layer(out_channels)
-        relu = nn.ReLU(inplace=True)
-        return nn.Sequential(conv, norm, relu)
-
-    def forward(self, x, x_side, roi=None):
-        x = self.main(x)
-        xp = self.pool(x) if self.pool is not None else x
-        
-        x_side = self.side(x_side)
-        if roi is None:
-            roi = torch.Tensor([[0, 0, 0, lr_size, lr_size]]).to(x_side.device)
-        h, w = xp.size()[2:]
-        x_side = ROIAlign((h, w), self.scale, -1)(x_side, roi)
-
-        xp = torch.cat((xp, x_side), dim=1)
-        return xp, x
-
-class DecoderBlock(nn.Module):
-    def __init__(self, n_inputs, n_channels, n_layers=1):
-        super(DecoderBlock, self).__init__()
-        self.layer1 = self._make_block(n_inputs, n_channels, ks=1)
-        layers = []
-        for n in range(n_layers):
-            layers.append(self._make_block(n_channels, n_channels, ks=3))
-        self.layer2 = nn.Sequential(*layers)
-
-    def _make_block(self, in_channels, out_channels, ks=1):
-        if ks == 1:
-            conv = conv1x1(in_channels, out_channels)
-        elif ks == 3:
-            conv = conv3x3(in_channels, out_channels)
-        else:
-            raise NotImplementedError
-        norm = norm_layer(out_channels)
-        relu = nn.ReLU(inplace=True)
-        return nn.Sequential(conv, norm, relu)
-
-    def forward(self, x, x_side):
-        x = self.layer1(x)
-        x = F.interpolate(x, size=x_side.size()[2:], mode='bilinear', 
-                align_corners=True)
-        x = x + x_side # TODO: try concat instead of sum
-        x = self.layer2(x)
-        return x
-class Bottleneck(nn.Module):
-    expansion = 2
-    def __init__(self, inplanes, planes, stride=1, dilation=1, downsample=None):
-        super(Bottleneck, self).__init__()
-        self.conv1 = conv1x1(inplanes, planes, stride)
-        self.bn1 = norm_layer(planes)
-        self.conv2 = conv3x3(planes, planes, 1, dilation, dilation)
-        self.bn2 = norm_layer(planes)
-        self.conv3 = conv1x1(planes, planes*self.expansion)
-        self.bn3 = norm_layer(planes*self.expansion)
-        self.relu = nn.ReLU(inplace=True)
-        self.downsample = downsample
-
-    def forward(self, x):
-        out = self.conv1(x)
-        out = self.bn1(out)
-        out = self.relu(out)
-        
-        out = self.conv2(out)
-        out = self.bn2(out)
-        out = self.relu(out)
-        
-        out = self.conv3(out)
-        out = self.bn3(out)
-        
-        if self.downsample is not None:
-            residual = self.downsample(x)
-        else:
-            residual = x
-        
-        out += residual
-        out = self.relu(out)
-        
-        return out
-class TOSNet(nn.Module):
-    def __init__(self, block, layers, n_inputs_context,n_inputs_edge, os=16):
-        super(TOSNet, self).__init__()
-        self.inplanes = 64
-
-
-        # Setting dilated convolution rates
-        if os == 16:
-            layer3_stride, layer4_stride = 2, 1
-            layer3_dilation = [1]*layers[2]
-            layer4_dilation = [2, 4, 8]
-        elif os == 8:
-            layer3_stride, layer4_stride = 1, 1
-            layer3_dilation = [2]*layers[2]
-            layer4_dilation = [4, 8, 16]
-        else:
-            raise ValueError('Unsupported output stride: {}'.format(os))
-        self.downchannels=conv1x1(520,768)
-        # Context branch (ResNet)
-        self.conv1 = Conv2d(n_inputs_context, self.inplanes, kernel_size=7, stride=2, 
-                            padding=3, bias=False)
-        self.bn1 = norm_layer(self.inplanes)
-        self.relu = nn.ReLU(inplace=True)
-        self.maxpool = nn.MaxPool2d(kernel_size=3, stride=2, padding=1)
-        self.layer1 = self._make_layer(block,  32, layers[0], stride=1, 
-                                       dilation=[1]*layers[0])
-        self.layer2 = self._make_layer(block, 64, layers[1], stride=2, 
-                                       dilation=[1]*layers[1])
-        self.layer3 = self._make_layer(block, 128, layers[2], stride=layer3_stride, 
-                                       dilation=layer3_dilation)
-        self.layer4 = self._make_layer(block, 256, layers[3], stride=layer4_stride, 
-                                       dilation=layer4_dilation)
-
-
-        # Edge branch
-        n_layers = 2
-        self.grad1 = EncoderBlock(n_inputs_edge, 8, 64, n_layers, True, 1./2)
-        self.grad2 = EncoderBlock(16, 16, 128, n_layers, True, 1./4)
-        self.grad3 = EncoderBlock(32, 32, 256, n_layers, True, 1./8)
-        self.grad4 = EncoderBlock(64, 32, 512, n_layers, True, 1./16)
-        self.grad3_decoder = DecoderBlock(64, 32, n_layers)
-        self.grad2_decoder = DecoderBlock(32, 16, n_layers)
-        self.grad1_decoder = DecoderBlock(16, 8, n_layers)
-
-    def _make_layer(self, block, planes, blocks, stride, dilation):
-        downsample = None
-        if stride != 1 or self.inplanes != planes * block.expansion:
-            downsample = nn.Sequential(
-                conv1x1(self.inplanes, planes * block.expansion, stride),
-                norm_layer(planes * block.expansion))
-
-        layers = []
-        layers.append(block(self.inplanes, planes, stride, dilation=dilation[0], 
-                            downsample=downsample))
-        self.inplanes = planes * block.expansion
-        for i in range(1, blocks):
-            layers.append(block(self.inplanes, planes, dilation=dilation[i]))
-
-        return nn.Sequential(*layers)
-
-    def forward(self, x, x_grad, roi=None):
-        # Context stream
-        x_lr0 = self.conv1(x)
-        x_lr0 = self.bn1(x_lr0)
-        x_lr0 = self.relu(x_lr0)
-        x_lr0 = self.maxpool(x_lr0)
-        x_lr1 = self.layer1(x_lr0)
-         #torch.Size([1, 128, 256, 256])
-        x_lr2 = self.layer2(x_lr1) 
-         #torch.Size([1, 256, 128, 128])
-        x_lr3 = self.layer3(x_lr2)
-         #torch.Size([1, 512, 64, 64])
-        x_lr4 = self.layer4(x_lr3)
-         #torch.Size([1, 1024, 64, 64])
-        
-        # Edge stream
-        x_gr1, x_enc1 = self.grad1(x_grad, x_lr1, roi)
-        x_gr2, x_enc2 = self.grad2(x_gr1, x_lr2, roi)
-        x_gr3, x_enc3 = self.grad3(x_gr2, x_lr3, roi)
-        x_gr4, x_enc4 = self.grad4(x_gr3, x_lr4, roi)
-
-        dec = self.grad3_decoder(x_gr4, x_enc3)
-        dec = self.grad2_decoder(dec, x_enc2)
-        dec = self.grad1_decoder(dec, x_enc1)
-        #torch.Size([1, 16, 512, 512])
-
-        # Fusion stream
-        if roi is None:
-            roi = torch.Tensor([[0, 0, 0, 64, 64]]).to(x.device)
-        h, w = x_lr4.shape[2],x_lr4.shape[3]
-        roipool = ROIAlign((h, w), 1./4, -1)
-        dec = roipool(dec, roi)
-        features = torch.cat((x_lr4, dec), dim=1)
-        features=self.downchannels(features)
-        return features
-    
-
-##==========================
 class CrossBranchAdapter(nn.Module):
     def __init__(self):
         super(CrossBranchAdapter, self).__init__()
@@ -421,7 +152,70 @@ class CrossBranchAdapter(nn.Module):
         #print(conv_out.shape) #torch.Size([1, 768, 64, 64])
         #conv_out=self.mlp(conv_out.permute(0,2,3,1)) 
         return conv_out.permute(0,2,3,1)
+# class MLPBlock(nn.Module):
+#     def __init__(
+#         self,
+#         embedding_dim: int,
+#         mlp_dim: int,
+#         out_dim:int,
+#         act: Type[nn.Module] = nn.GELU,
+#     ) -> None:
+#         super().__init__()
+#         self.lin1 = nn.Linear(embedding_dim, mlp_dim)
+#         self.lin2 = nn.Linear(mlp_dim, out_dim)
+#         self.act = act()
 
+#     def forward(self, x: torch.Tensor) -> torch.Tensor:
+#         return self.lin2(self.act(self.lin1(x)))   
+# class CrossBranchAdapter(nn.Module):
+#     def __init__(self):
+#         super(CrossBranchAdapter, self).__init__()
+#         self.mean_pool = nn.AdaptiveMaxPool2d((64,64))
+#         self.mlp_block_1=MLPBlock(embedding_dim=512,mlp_dim=512*4,out_dim=256,act=nn.GELU)
+#         self.sigmoid = nn.Sigmoid()
+#         # self.h1 = nn.Linear(4096, 64)
+#         # self.h2 = nn.Linear(64, 4096)
+#     def forward(self, tensor1, tensor2):
+#         # Concatenate 2 tensors along the channel dimension
+#         Fc=tensor1
+#         Ft=tensor2
+#         concat_tensor = torch.cat([tensor1,tensor2],dim=1) #(1,512,64,64)
+
+#         # Max and Mean pooling operations on concat_tensor
+#         mean_pool = self.mean_pool(concat_tensor) #(1,512,64,64)
+#         Wc=self.sigmoid(self.mlp_block_1(mean_pool.permute(0,2,3,1))).permute(0,3,1,2)
+#         Wt=self.sigmoid(self.mlp_block_1(mean_pool.permute(0,2,3,1))).permute(0,3,1,2)
+#         Filterc=torch.mul(Fc,Wc)
+#         Filtert=torch.mul(Ft,Wt)
+#         RecC=Filterc+Fc
+#         RecT=Filtert+Ft
+#         Ac = torch.exp(RecC) / (torch.exp(RecC) + torch.exp(RecT))
+#         At = torch.exp(RecT) / (torch.exp(RecT) + torch.exp(RecC))
+#         final_feature=Ac*Fc+At*Ft
+#         return final_feature
+# class CrossBranchAdapter(nn.Module):
+#     def __init__(self):
+#         super(CrossBranchAdapter, self).__init__()
+#         self.max_pool = nn.AdaptiveMaxPool2d((64,64))
+#         self.mean_pool = nn.AdaptiveAvgPool2d((64,64))
+#         #self.mlp_block_2=MLPBlock(embedding_dim=512,mlp_dim=512*2,out_dim=256,act=nn.GELU)
+#         self.conv = nn.Sequential(nn.Conv2d(in_channels=512,out_channels=512,kernel_size=3, padding=1, stride=1),nn.Sigmoid())
+#         self.dchannels = nn.Sequential(nn.Conv2d(in_channels=512,out_channels=256,kernel_size=1, stride=1),LayerNorm2d(256),nn.GELU())
+#         self.sigmoid = nn.Sigmoid()
+#         # self.h1 = nn.Linear(4096, 64)
+#         # self.h2 = nn.Linear(64, 4096)
+#     def forward(self, tensor1, tensor2):
+#         # Concatenate 2 tensors along the channel dimension
+#         concat_tensor = tensor1+tensor2 #(1,256,64,64)
+#         shortcut_concat= concat_tensor
+#         # Max and Mean pooling operations on concat_tensor
+#         mean_pooled = self.mean_pool(concat_tensor) #(1,256,64,64)
+#         max_pooled = self.max_pool(concat_tensor)
+#         pooled_concat=torch.cat([max_pooled,mean_pooled],dim=1)
+#         w_conv=self.conv(pooled_concat)
+#         w_conv=self.dchannels(w_conv)
+#         final_feature=shortcut_concat*w_conv+shortcut_concat
+#         return final_feature
 # This class and its supporting functions below lightly adapted from the ViTDet backbone available at: https://github.com/facebookresearch/detectron2/blob/main/detectron2/modeling/backbone/vit.py # noqa
 class DualImageEncoderViT(ImageEncoderViT):
     def __init__(self,model_type,is_train):
@@ -474,15 +268,13 @@ class DualImageEncoderViT(ImageEncoderViT):
                 param.requires_grad = True
             else:
                 param.requires_grad = False
-        self.feature_extractor=TOSNet(Bottleneck, [3, 2, 2, 3], n_inputs_context=3,n_inputs_edge=4)
+        self.feature_extractor=FeatureExtractor()
         self.cross_branch_adapter=CrossBranchAdapter()
         if is_train==True:
             self.load_state_dict(torch.load("/kaggle/working/training/pretrained_checkpoint/epoch_5encoder.pth"))
             print("encoder load pretrained!")
     def forward(self, x: torch.Tensor) -> torch.Tensor:
-            img_grad =self.compute_image_gradient(x).view(1,4,512,512) #(1024,1024)
-            img_grad=img_grad.type(torch.float32).to(device="cuda")
-            add_features=self.feature_extractor(x,img_grad)
+            add_features=self.feature_extractor(x)
             x = self.patch_embed(x) #(1,64,64,768)
             if self.pos_embed is not None:
                 x = x + self.pos_embed
@@ -495,45 +287,6 @@ class DualImageEncoderViT(ImageEncoderViT):
             x=self.cross_branch_adapter(x,add_features)
             x = self.neck(x.permute(0, 3, 1, 2))
             return x, interm_embeddings
-    def compute_image_gradient(self,image_batch, method='sobel'):
-        """
-        Compute image gradient for a batch of images.
-
-        Parameters:
-        - image_batch: Input batch of images with shape (n, 3, H, W).
-        - method: Gradient computation method (default is 'sobel').
-
-        Returns:
-        - img_grad_batch: Batch of image gradients normalized to [0,1], with shape (n, H, W).
-        """
-        assert image_batch.ndim == 4 and image_batch.shape[1] == 3, "Input batch must be 4-dimensional with shape (n, 3, H, W)."
-
-        n, _, h, w = image_batch.shape
-        img_grad_batch = np.zeros((n, h, w))
-
-        for i in range(n):
-            img = image_batch[i].cpu().numpy().transpose(1, 2, 0)  # Convert to (H, W, 3)
-            
-            if method == 'sobel':
-                # Apply sobel filter to compute image gradient
-                img_r = img[:, :, 0]
-                img_g = img[:, :, 1]
-                img_b = img[:, :, 2]
-                
-                grad_r = sobel(img_r)
-                grad_g = sobel(img_g)
-                grad_b = sobel(img_b)
-                
-                img_grad = np.sqrt(grad_r**2 + grad_g**2 + grad_b**2)
-                
-                # Normalize to [0,1]
-                img_grad = (img_grad - img_grad.min()) / (img_grad.max() - img_grad.min())
-            else:
-                raise NotImplementedError("Only 'sobel' method is implemented.")
-
-            img_grad_batch[i] = img_grad
-            
-        return torch.tensor(img_grad_batch)
 
 
 
@@ -841,7 +594,7 @@ def main(net,encoder,train_datasets, valid_datasets):
                                                                 RandomHFlip(),
                                                                 LargeScaleJitter()
                                                                 ],
-                                                    batch_size = 1,
+                                                    batch_size = 2,
                                                     training = True)
     print(len(train_dataloaders), " train dataloaders created")
 
@@ -901,7 +654,7 @@ def train(net,encoder,optimizer, train_dataloaders, valid_dataloaders, lr_schedu
         metric_logger = misc.MetricLogger(delimiter="  ")
         # train_dataloaders.batch_sampler.sampler.set_epoch(epoch)
 
-        for data in metric_logger.log_every(train_dataloaders,500):
+        for data in metric_logger.log_every(train_dataloaders,1000):
             inputs, labels = data['image'], data['label']
             if torch.cuda.is_available():
                 inputs = inputs.to(device="cuda")
@@ -1264,6 +1017,6 @@ if __name__ == "__main__":
     #valid_datasets = [dataset_thin_val,dataset_coift_val,dataset_hrsod_val] 
 
     # args = get_args_parser()
-    net = MaskDecoderHQ("vit_b",is_train=False) 
-    encoder=DualImageEncoderViT("vit_b",is_train=False)
+    net = MaskDecoderHQ("vit_b",is_train=True) 
+    encoder=DualImageEncoderViT("vit_b",is_train=True)
     main(net,encoder,train_datasets, valid_datasets)
