@@ -474,7 +474,7 @@ class DualImageEncoderViT(ImageEncoderViT):
                 param.requires_grad = True
             else:
                 param.requires_grad = False
-        self.feature_extractor=TOSNet(Bottleneck, [3, 2, 2, 3], n_inputs_context=3,n_inputs_edge=4).to(device="cuda")
+        self.feature_extractor=TOSNet(Bottleneck, [3, 2, 2, 3], n_inputs_context=3,n_inputs_edge=4)
         self.cross_branch_adapter=CrossBranchAdapter()
         if is_train==True:
             self.load_state_dict(torch.load("/kaggle/working/training/pretrained_checkpoint/epoch_5encoder.pth"))
