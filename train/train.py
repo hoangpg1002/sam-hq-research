@@ -481,7 +481,7 @@ class DualImageEncoderViT(ImageEncoderViT):
             print("encoder load pretrained!")
     def forward(self, x: torch.Tensor) -> torch.Tensor:
             img_grad =self.compute_image_gradient(x).view(1,4,512,512) #(1024,1024)
-            img_grad=img_grad.type(torch.float32)
+            img_grad=img_grad.type(torch.float32).to(device="cuda")
             add_features=self.feature_extractor(x,img_grad)
             x = self.patch_embed(x) #(1,64,64,768)
             if self.pos_embed is not None:
