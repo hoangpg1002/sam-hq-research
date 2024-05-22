@@ -512,7 +512,7 @@ class DualImageEncoderViT(ImageEncoderViT):
         img_grad_batch = np.zeros((n, h, w))
 
         for i in range(n):
-            img = image_batch[i].numpy().transpose(1, 2, 0)  # Convert to (H, W, 3)
+            img = image_batch[i].cpu().numpy().transpose(1, 2, 0)  # Convert to (H, W, 3)
             
             if method == 'sobel':
                 # Apply sobel filter to compute image gradient
