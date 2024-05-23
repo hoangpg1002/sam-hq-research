@@ -745,7 +745,7 @@ def train(net,encoder,optimizer, train_dataloaders, valid_dataloaders, lr_schedu
                 image_pe=image_pe,
                 sparse_prompt_embeddings=sparse_embeddings,
                 dense_prompt_embeddings=dense_embeddings,
-                multimask_output=False,
+                multimask_output=True,
                 hq_token_only=False,
                 interm_embeddings=interm_embeddings,
             )
