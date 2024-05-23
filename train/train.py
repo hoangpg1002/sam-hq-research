@@ -487,8 +487,7 @@ class MaskDecoderHQ(MaskDecoder):
         hyper_in = torch.stack(hyper_in_list, dim=1)
         b, c, h, w = upscaled_embedding_sam.shape
 
-        #masks_sam = (hyper_in[:,:4] @ upscaled_embedding_sam.view(b, c, h * w)).view(b, -1, h, w)
-        masks_sam = (hyper_in[:,:4] @ upscaled_embedding_ours.view(b, c, h * w)).view(b, -1, h, w)
+        masks_sam = (hyper_in[:,:4] @ upscaled_embedding_sam.view(b, c, h * w)).view(b, -1, h, w)
         masks_ours = (hyper_in[:,4:] @ upscaled_embedding_ours.view(b, c, h * w)).view(b, -1, h, w)
         masks = torch.cat([masks_sam,masks_ours],dim=1)
         
@@ -655,7 +654,7 @@ def train(net,encoder,optimizer, train_dataloaders, valid_dataloaders, lr_schedu
         metric_logger = misc.MetricLogger(delimiter="  ")
         # train_dataloaders.batch_sampler.sampler.set_epoch(epoch)
 
-        for data in metric_logger.log_every(train_dataloaders,200):
+        for data in metric_logger.log_every(train_dataloaders,1000):
             inputs, labels = data['image'], data['label']
             if torch.cuda.is_available():
                 inputs = inputs.to(device="cuda")
@@ -740,17 +739,17 @@ def train(net,encoder,optimizer, train_dataloaders, valid_dataloaders, lr_schedu
             sparse_embeddings = [batched_output[i_l]['sparse_embeddings'] for i_l in range(batch_len)]
             dense_embeddings = [batched_output[i_l]['dense_embeddings'] for i_l in range(batch_len)]
 
-            masks_sam,masks_hq = net(
+            masks_hq = net(
                 image_embeddings=encoder_embedding,
                 image_pe=image_pe,
                 sparse_prompt_embeddings=sparse_embeddings,
                 dense_prompt_embeddings=dense_embeddings,
-                multimask_output=True,
-                hq_token_only=False,
+                multimask_output=False,
+                hq_token_only=True,
                 interm_embeddings=interm_embeddings,
             )
 
-            loss_mask, loss_dice = loss_masks(masks_sam, labels/255.0, len(masks_sam))
+            loss_mask, loss_dice = loss_masks(masks_hq, labels/255.0, len(masks_hq))
             loss = loss_mask + loss_dice
             
             loss_dict = {"loss_mask": loss_mask, "loss_dice":loss_dice}
@@ -925,8 +924,8 @@ def evaluate(net,encoder, sam, valid_dataloaders):
                 interm_embeddings=interm_embeddings,
             )
 
-            iou = compute_iou(masks_sam,labels_ori)
-            boundary_iou = compute_boundary_iou(masks_sam,labels_ori)
+            iou = compute_iou(masks_hq,labels_ori)
+            boundary_iou = compute_boundary_iou(masks_hq,labels_ori)
                        
             loss_dict = {"val_iou_"+str(k): iou, "val_boundary_iou_"+str(k): boundary_iou}
             loss_dict_reduced = misc.reduce_dict(loss_dict)
@@ -1014,8 +1013,8 @@ if __name__ == "__main__":
 
     #train_datasets = [dataset_dis, dataset_thin, dataset_fss, dataset_duts, dataset_duts_te, dataset_ecssd, dataset_msra]
     train_datasets = [dataset_thin]
-    #valid_datasets = [dataset_thin_val] 
-    valid_datasets = [dataset_thin_val,dataset_coift_val,dataset_hrsod_val] 
+    valid_datasets = [dataset_thin_val] 
+    #valid_datasets = [dataset_thin_val,dataset_coift_val,dataset_hrsod_val] 
 
     # args = get_args_parser()
     net = MaskDecoderHQ("vit_b",is_train=False) 
