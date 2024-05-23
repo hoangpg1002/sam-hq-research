@@ -750,7 +750,7 @@ def train(net,encoder,optimizer, train_dataloaders, valid_dataloaders, lr_schedu
                 interm_embeddings=interm_embeddings,
             )
 
-            loss_mask, loss_dice = loss_masks(masks_sam, labels/255.0, len(masks_hq))
+            loss_mask, loss_dice = loss_masks(masks_sam, labels/255.0, len(masks_sam))
             loss = loss_mask + loss_dice
             
             loss_dict = {"loss_mask": loss_mask, "loss_dice":loss_dice}
