@@ -58,6 +58,8 @@ def eval_zero_shot(eval_type,val_img_path,val_json_path,vit_det_file_path,sam_ch
             point_coords=None,
             point_labels=None,
             box=input_box[None, :],
+            multimask_output=False,
+            hq_token_only=False
         )
         
         new_seg=mask_util.encode(np.array(masks[np.argmax(ious)],order="F", dtype="uint8"))
